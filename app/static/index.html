@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Poker Decision Lab</title>
+  <meta name="description" content="Educational heads-up Texas Hold'em call/fold analyser: equity, pot odds and expected value under explicit assumptions.">
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo" aria-hidden="true">♠</span>
+      <h1>Poker Decision Lab</h1>
+    </div>
+    <span id="api-status" class="pill pill--pending">API: checking…</span>
+  </header>
+
+  <main class="layout">
+    <section class="panel panel--inputs" aria-labelledby="inputs-title">
+      <h2 id="inputs-title">Situation</h2>
+
+      <div class="field">
+        <span class="label">Your cards</span>
+        <div class="slots"><span class="slot"></span><span class="slot"></span></div>
+      </div>
+
+      <div class="field">
+        <span class="label">Board</span>
+        <div class="slots">
+          <span class="slot"></span><span class="slot"></span><span class="slot"></span>
+          <span class="slot slot--later"></span><span class="slot slot--later"></span>
+        </div>
+      </div>
+
+      <div class="field-row">
+        <label class="field">Pot before bet <input type="number" disabled placeholder="100"><small>chips</small></label>
+        <label class="field">Opponent bet <input type="number" disabled placeholder="50"><small>chips</small></label>
+        <label class="field">Effective stack <input type="number" disabled placeholder="500"><small>chips</small></label>
+      </div>
+
+      <div class="field">
+        <span class="label">Opponent range</span>
+        <div class="chips-row">
+          <span class="chip">Tight</span><span class="chip chip--on">Balanced</span><span class="chip">Aggressive</span><span class="chip">Custom</span>
+        </div>
+      </div>
+
+      <button class="btn" disabled>Analyse decision</button>
+      <p class="hint">Inputs arrive in milestone M1 (cards) and M3 (ranges).</p>
+    </section>
+
+    <section class="panel panel--results" aria-labelledby="results-title">
+      <h2 id="results-title">Results</h2>
+      <div class="stats">
+        <div class="stat"><span class="stat__label">Equity</span><span class="stat__value">—</span></div>
+        <div class="stat"><span class="stat__label">Break-even equity</span><span class="stat__value">—</span></div>
+        <div class="stat"><span class="stat__label">Call EV</span><span class="stat__value">—</span></div>
+        <div class="stat"><span class="stat__label">Decision</span><span class="stat__value">—</span></div>
+      </div>
+      <p class="hint">Equity, confidence intervals and EV arrive in M4–M6.</p>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <p><strong>Educational tool.</strong> Results depend entirely on the assumed opponent range and strategy.
+      It does not know anyone's cards, does not connect to live games, and guarantees nothing.</p>
+  </footer>
+
+  <script src="/js/main.js" type="module"></script>
+</body>
+</html>

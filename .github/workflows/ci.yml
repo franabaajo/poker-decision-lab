@@ -1,0 +1,31 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
+      - name: Install dependencies (exact versions from uv.lock)
+        # --locked fails if uv.lock is out of date with pyproject.toml.
+        # Fallback only until the first uv.lock is committed.
+        run: |
+          if [ -f uv.lock ]; then uv sync --locked; else uv sync; fi
+
+      - name: Lint
+        run: uv run ruff check .
+
+      - name: Check formatting
+        run: uv run ruff format --check .
+
+      - name: Tests
+        run: uv run pytest
