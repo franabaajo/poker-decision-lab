@@ -39,10 +39,10 @@ h2 { font-size: 1rem; margin-bottom: 1rem; color: var(--muted); text-transform: 
 
 .layout {
   display: grid; gap: 1.25rem; padding: 1.5rem;
-  grid-template-columns: minmax(320px, 1fr) minmax(320px, 1fr);
-  max-width: 1100px; margin: 0 auto;
+  grid-template-columns: minmax(0, 3fr) minmax(280px, 2fr);
+  max-width: 1200px; margin: 0 auto; align-items: start;
 }
-@media (max-width: 760px) { .layout { grid-template-columns: 1fr; } }
+@media (max-width: 860px) { .layout { grid-template-columns: 1fr; } }
 
 .panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.25rem; }
 
@@ -55,9 +55,6 @@ h2 { font-size: 1rem; margin-bottom: 1rem; color: var(--muted); text-transform: 
 .field small { font-size: .75rem; }
 .label { color: var(--muted); }
 
-.slots { display: flex; gap: .5rem; }
-.slot { width: 48px; height: 66px; border-radius: 8px; border: 1px dashed var(--border); background: var(--surface-2); }
-.slot--later { opacity: .5; }
 
 .chips-row { display: flex; flex-wrap: wrap; gap: .5rem; }
 .chip { padding: .3rem .8rem; border-radius: 999px; border: 1px solid var(--border); color: var(--muted); font-size: .85rem; }
@@ -76,4 +73,72 @@ h2 { font-size: 1rem; margin-bottom: 1rem; color: var(--muted); text-transform: 
 
 .hint { font-size: .8rem; color: var(--muted); margin: .75rem 0 0; }
 
-.footer { max-width: 1100px; margin: 0 auto; padding: 0 1.5rem 2rem; font-size: .8rem; color: var(--muted); }
+.footer { max-width: 1200px; margin: 0 auto; padding: 0 1.5rem 2rem; font-size: .8rem; color: var(--muted); }
+
+/* --- M1: card picker ------------------------------------------------------------ */
+
+:root {
+  --card-face: #f7f5ef;
+  --suit-s: #1b1b1b;   /* four-colour deck: easier to tell suits apart at a glance */
+  --suit-h: #c8372d;
+  --suit-d: #2b6cc4;
+  --suit-c: #2f8a4c;
+}
+
+.panel__head, .field__head { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; }
+.panel__head h2 { margin-bottom: 1rem; }
+
+.link-btn {
+  background: none; border: 0; padding: 0; color: var(--accent);
+  font: inherit; font-size: .8rem; cursor: pointer;
+}
+.link-btn:hover { text-decoration: underline; }
+
+.table-row { display: flex; flex-wrap: wrap; gap: 1.5rem; }
+.table-row .field:first-child { flex: 0 0 auto; }
+.table-row .field:last-child { flex: 1 1 auto; }
+
+.slots { display: flex; gap: .45rem; }
+.slot {
+  width: 52px; height: 72px; border-radius: 8px; padding: 0;
+  border: 1px dashed var(--border); background: var(--surface-2);
+  color: var(--muted); cursor: pointer; font: inherit;
+  display: flex; align-items: center; justify-content: center;
+}
+.slot__label { font-size: .65rem; }
+.slot--active { border: 2px solid var(--accent); box-shadow: 0 0 0 3px rgba(224, 180, 76, .2); }
+.slot.pcard { border-style: solid; }
+.slot.pcard .pcard__rank { font-size: 1.35rem; }
+.slot.pcard .pcard__suit { font-size: 1.2rem; }
+.slot.pcard:hover { opacity: .75; }
+
+.card-grid {
+  display: grid; grid-template-columns: repeat(13, minmax(0, 1fr));
+  gap: 4px; margin-top: .25rem;
+}
+
+.pcard {
+  background: var(--card-face); border: 1px solid #d9d5c8; border-radius: 6px;
+  aspect-ratio: 5 / 7; padding: 0; cursor: pointer; font: inherit;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  line-height: 1; font-weight: 700; transition: transform .08s, opacity .15s;
+}
+.pcard__rank { font-size: clamp(.7rem, 1.4vw, 1rem); }
+.pcard__suit { font-size: clamp(.65rem, 1.3vw, .95rem); }
+.pcard--s { color: var(--suit-s); }
+.pcard--h { color: var(--suit-h); }
+.pcard--d { color: var(--suit-d); }
+.pcard--c { color: var(--suit-c); }
+.card-grid .pcard:not(:disabled):hover { transform: translateY(-2px); }
+.card-grid .pcard:disabled { cursor: not-allowed; opacity: .35; }
+.card-grid .pcard--used { opacity: .12 !important; }
+.pcard:focus-visible, .slot:focus-visible, .link-btn:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: 2px;
+}
+
+.status { font-size: .85rem; margin: 0 0 .75rem; padding: .45rem .7rem; border-radius: 8px; background: var(--surface-2); }
+.status--info { color: var(--muted); }
+.status--ok { color: var(--good); }
+.status--error { color: var(--bad); }
+
+.field-row { margin-top: 1rem; }

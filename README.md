@@ -8,7 +8,7 @@ You enter your hole cards, the board, the pot, the bet, effective stacks and an 
 
 > **Not a gambling tool.** It does not know anyone's cards, does not connect to live games and guarantees nothing. Every result is conditional on the assumed opponent range and strategy.
 
-**Status:** milestone M0 (project scaffold). See the [roadmap](#roadmap).
+**Status:** milestone M1 (cards, validation and card picker). See the [roadmap](#roadmap).
 
 ## Quick start
 
@@ -50,7 +50,7 @@ The engine never imports the web layer, which keeps it testable, benchmarkable a
 ## Roadmap
 
 - [x] **M0** Scaffold: uv project, CI, FastAPI + frontend skeleton, Docker, deployment
-- [ ] **M1** Cards, validation and card picker
+- [x] **M1** Cards, validation and card picker
 - [ ] **M2** Hand evaluator, verified against exhaustive 5-card category counts
 - [ ] **M3** Ranges, combos, card removal; presets + range grid
 - [ ] **M4** Equity engine: exact enumeration + Monte Carlo with confidence intervals

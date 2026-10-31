@@ -12,3 +12,5 @@ Each Architecture Decision Record captures one project decision: the context, th
 | [0006](0006-frontend-without-build-step.md) | Plain HTML/CSS/JS frontend, no build step | Accepted |
 | [0007](0007-python-tooling-uv.md) | Python 3.12 managed with uv; ruff and pytest | Accepted |
 | [0008](0008-units-in-chips.md) | Display amounts in chips | Accepted |
+| [0009](0009-card-picker.md) | Clickable 52-card grid picker | Accepted |
+| [0010](0010-card-representation.md) | Cards are integers 0–51 | Accepted |
