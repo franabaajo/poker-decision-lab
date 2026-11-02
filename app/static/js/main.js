@@ -2,6 +2,7 @@
 
 import { getCards, getHealth, validateSpot } from "./api.js";
 import { CardPicker } from "./cardPicker.js";
+import { RangePanel } from "./rangePanel.js";
 
 const $ = (id) => document.getElementById(id);
 
@@ -25,9 +26,11 @@ function setStatus(kind, text) {
 }
 
 let requestId = 0; // ignore out-of-order responses when the user clicks quickly
+const rangePanel = new RangePanel();
 
 async function onSpotChange({ hero, board }) {
   $("analyse").disabled = true;
+  rangePanel.setDeadCards(hero, board);
   if (hero.length < 2) {
     setStatus("info", `Pick your ${2 - hero.length === 2 ? "two hole cards" : "second hole card"}.`);
     return;
@@ -50,6 +53,7 @@ async function onSpotChange({ hero, board }) {
 
 async function init() {
   checkApi();
+  await rangePanel.init("balanced");
   const cards = await getCards();
   const picker = new CardPicker({
     heroEl: $("hero-slots"),

@@ -23,6 +23,8 @@ from pokerlab.cards import (
     rank_of,
     suit_of,
 )
+from pokerlab.profiles import PROFILES
+from pokerlab.ranges import CLASS_COMBOS, Range, RangeError
 from pokerlab.spot import Spot
 
 STATIC_DIR = Path(__file__).parent / "static"
@@ -57,6 +59,41 @@ class SpotValidation(BaseModel):
     street: str | None = None
     hero: list[str] = []
     board: list[str] = []
+
+
+class PresetOut(BaseModel):
+    key: str
+    name: str
+    description: str
+    notation: str
+    combos: float
+    percent: float
+
+
+class RangeIn(BaseModel):
+    """Give either ``notation`` (text) or ``weights`` (from the grid)."""
+
+    notation: str | None = Field(default=None, examples=["TT+, AKs, A5s:0.5"])
+    weights: dict[str, float] | None = Field(default=None, examples=[{"AA": 1, "A5s": 0.5}])
+    hero: list[str] = Field(default_factory=list, description="Cards removed from the range")
+    board: list[str] = Field(default_factory=list)
+
+
+class GridCell(BaseModel):
+    label: str
+    weight: float
+    combos: int = Field(description="Combos in this class (6, 4 or 12)")
+    live: int = Field(description="Combos still possible after card removal")
+
+
+class RangeOut(BaseModel):
+    valid: bool
+    error: str | None = None
+    notation: str = ""
+    combos: float = Field(0, description="Weighted combos, ignoring card removal")
+    live_combos: float = Field(0, description="Weighted combos after card removal")
+    percent: float = Field(0, description="Share of all 1,326 starting hands")
+    grid: list[GridCell] = []
 
 
 # --- Routes -----------------------------------------------------------------------
@@ -102,6 +139,57 @@ def validate_spot(spot_in: SpotIn) -> SpotValidation:
         street=spot.street.label,
         hero=[card_to_str(c) for c in spot.hero],
         board=[card_to_str(c) for c in spot.board],
+    )
+
+
+@app.get("/api/ranges/presets")
+def list_presets() -> list[PresetOut]:
+    """The preset opponent profiles and their ranges."""
+    return [
+        PresetOut(
+            key=p.key,
+            name=p.name,
+            description=p.description,
+            notation=p.notation,
+            combos=p.range.combo_count(),
+            percent=round(100 * p.range.fraction(), 1),
+        )
+        for p in PROFILES.values()
+    ]
+
+
+@app.post("/api/ranges/analyse")
+def analyse_range(range_in: RangeIn) -> RangeOut:
+    """Parse a range (text or grid weights) and apply card removal.
+
+    Returns the normalised notation and per-class counts so the grid, the text box
+    and the summary can all be redrawn from one answer.
+    """
+    try:
+        if range_in.weights is not None:
+            rng = Range(range_in.weights)
+        else:
+            rng = Range.parse(range_in.notation or "")
+        dead = {parse_card(c) for c in (*range_in.hero, *range_in.board)}
+    except (RangeError, CardError) as exc:
+        return RangeOut(valid=False, error=str(exc))
+
+    grid = [
+        GridCell(
+            label=label,
+            weight=weight,
+            combos=len(CLASS_COMBOS[label]),
+            live=sum(1 for a, b in CLASS_COMBOS[label] if a not in dead and b not in dead),
+        )
+        for label, weight in rng.iter_grid()
+    ]
+    return RangeOut(
+        valid=True,
+        notation=rng.to_notation(),
+        combos=rng.combo_count(),
+        live_combos=rng.live_combo_count(dead),
+        percent=round(100 * rng.fraction(), 1),
+        grid=grid,
     )
 
 

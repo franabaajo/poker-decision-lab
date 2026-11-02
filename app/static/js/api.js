@@ -15,3 +15,9 @@ export const getCards = () => request("/api/cards");
 
 export const validateSpot = (hero, board) =>
   request("/api/spot/validate", { method: "POST", body: JSON.stringify({ hero, board }) });
+
+export const getPresets = () => request("/api/ranges/presets");
+
+/** body: {notation} or {weights}, plus hero/board codes for card removal. */
+export const analyseRange = (body) =>
+  request("/api/ranges/analyse", { method: "POST", body: JSON.stringify(body) });

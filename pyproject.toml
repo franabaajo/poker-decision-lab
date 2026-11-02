@@ -13,8 +13,7 @@ dependencies = [
 
 [dependency-groups]
 dev = [
-    "httpx2>=2.16.0",
-    # needed by FastAPI's TestClient
+    "httpx2>=2.16.0",  # needed by FastAPI's TestClient
     "hypothesis>=6.170.14",
     "pytest>=8",
     "ruff>=0.6",

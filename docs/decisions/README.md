@@ -16,3 +16,6 @@ Each Architecture Decision Record captures one project decision: the context, th
 | [0010](0010-card-representation.md) | Cards are integers 0–51 | Accepted |
 | [0011](0011-evaluator-verification.md) | Verify the evaluator exhaustively and against `treys` | Accepted |
 | [0012](0012-property-based-testing.md) | Property-based tests with `hypothesis` | Accepted |
+| [0013](0013-meaning-of-range.md) | The range = hands the opponent holds given this bet | Accepted |
+| [0014](0014-preset-profiles.md) | Tight / Balanced / Aggressive presets (~10/20/35%) | Accepted |
+| [0015](0015-range-weights.md) | Ranges carry partial weights | Accepted |

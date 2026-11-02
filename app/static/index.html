@@ -47,27 +47,50 @@
         <label class="field">Opponent bet <input type="number" disabled placeholder="50"><small>chips</small></label>
         <label class="field">Effective stack <input type="number" disabled placeholder="500"><small>chips</small></label>
       </div>
+      <p class="hint">Chip amounts become editable in M5.</p>
+    </section>
 
-      <div class="field">
-        <span class="label">Opponent range</span>
-        <div class="chips-row">
-          <span class="chip">Tight</span><span class="chip chip--on">Balanced</span><span class="chip">Aggressive</span><span class="chip">Custom</span>
+    <section class="panel panel--range" aria-labelledby="range-title">
+      <div class="panel__head">
+        <h2 id="range-title">Opponent range</h2>
+        <button id="range-clear" class="link-btn" type="button">Clear</button>
+      </div>
+      <p class="hint hint--top">The hands the opponent could hold <em>given that they made this bet</em>.
+        Pick a style, then adjust it in the grid or the text box.</p>
+
+      <div id="presets" class="chips-row" role="group" aria-label="Opponent style"></div>
+      <p id="preset-description" class="hint"></p>
+
+      <p id="range-summary" class="status status--info" role="status" aria-live="polite">Loading range…</p>
+
+      <div class="range-tools">
+        <span class="label">Click sets weight</span>
+        <div id="paint-weights" class="segmented" role="group" aria-label="Weight applied when clicking the grid">
+          <button type="button" data-w="1" class="is-on">100%</button>
+          <button type="button" data-w="0.5">50%</button>
+          <button type="button" data-w="0.25">25%</button>
         </div>
       </div>
+      <div id="range-grid" class="range-grid" aria-label="Range grid: suited hands above the diagonal, offsuit below, pairs on the diagonal"></div>
+      <p class="hint">Upper right: suited (s) · lower left: offsuit (o) · diagonal: pairs.
+        Partly filled cells are in the range only part of the time. Dimmed cells are impossible because of the cards shown.</p>
 
-      <button id="analyse" class="btn" type="button" disabled>Analyse decision</button>
-      <p class="hint">Chip amounts arrive in M5, ranges in M3, the analysis in M4–M6.</p>
+      <label class="field field--text" for="range-text">Range as text
+        <textarea id="range-text" rows="3" spellcheck="false" placeholder="e.g. TT+, AJs+, KQs, A5s:0.5"></textarea>
+        <small id="range-text-error" class="text-error" aria-live="polite"></small>
+      </label>
     </section>
 
     <section class="panel panel--results" aria-labelledby="results-title">
       <h2 id="results-title">Results</h2>
+      <button id="analyse" class="btn" type="button" disabled>Analyse decision</button>
+      <p class="hint">Equity, confidence intervals and EV arrive in M4–M6.</p>
       <div class="stats">
         <div class="stat"><span class="stat__label">Equity</span><span class="stat__value">—</span></div>
         <div class="stat"><span class="stat__label">Break-even equity</span><span class="stat__value">—</span></div>
         <div class="stat"><span class="stat__label">Call EV</span><span class="stat__value">—</span></div>
         <div class="stat"><span class="stat__label">Decision</span><span class="stat__value">—</span></div>
       </div>
-      <p class="hint">Equity, confidence intervals and EV arrive in M4–M6.</p>
     </section>
   </main>
 
