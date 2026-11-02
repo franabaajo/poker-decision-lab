@@ -15,8 +15,10 @@ dependencies = [
 dev = [
     "httpx2>=2.16.0",
     # needed by FastAPI's TestClient
+    "hypothesis>=6.170.14",
     "pytest>=8",
     "ruff>=0.6",
+    "treys>=0.1.8",
 ]
 
 [build-system]
@@ -30,6 +32,7 @@ packages = ["src/pokerlab"]
 testpaths = ["tests"]
 pythonpath = ["."]          # lets tests import the `app` package
 addopts = "-ra"
+markers = ["slow: long-running exhaustive tests (deselect with -m \"not slow\")"]
 
 [tool.ruff]
 line-length = 100

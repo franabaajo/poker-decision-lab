@@ -14,3 +14,5 @@ Each Architecture Decision Record captures one project decision: the context, th
 | [0008](0008-units-in-chips.md) | Display amounts in chips | Accepted |
 | [0009](0009-card-picker.md) | Clickable 52-card grid picker | Accepted |
 | [0010](0010-card-representation.md) | Cards are integers 0–51 | Accepted |
+| [0011](0011-evaluator-verification.md) | Verify the evaluator exhaustively and against `treys` | Accepted |
+| [0012](0012-property-based-testing.md) | Property-based tests with `hypothesis` | Accepted |

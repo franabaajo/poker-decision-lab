@@ -8,7 +8,7 @@ You enter your hole cards, the board, the pot, the bet, effective stacks and an 
 
 > **Not a gambling tool.** It does not know anyone's cards, does not connect to live games and guarantees nothing. Every result is conditional on the assumed opponent range and strategy.
 
-**Status:** milestone M1 (cards, validation and card picker). See the [roadmap](#roadmap).
+**Status:** milestone M2 (hand evaluator). See the [roadmap](#roadmap).
 
 ## Quick start
 
@@ -24,7 +24,8 @@ uv run uvicorn app.main:app --reload          # open http://127.0.0.1:8000
 Development:
 
 ```bash
-uv run pytest                 # tests
+uv run pytest                 # all tests (includes a ~25 s exhaustive check)
+uv run pytest -m "not slow"   # quick run
 uv run ruff check .           # lint
 uv run ruff format .          # format
 ```
@@ -51,7 +52,7 @@ The engine never imports the web layer, which keeps it testable, benchmarkable a
 
 - [x] **M0** Scaffold: uv project, CI, FastAPI + frontend skeleton, Docker, deployment
 - [x] **M1** Cards, validation and card picker
-- [ ] **M2** Hand evaluator, verified against exhaustive 5-card category counts
+- [x] **M2** Hand evaluator, verified against exhaustive 5-card category counts
 - [ ] **M3** Ranges, combos, card removal; presets + range grid
 - [ ] **M4** Equity engine: exact enumeration + Monte Carlo with confidence intervals
 - [ ] **M5** Pot odds, break-even equity and single-decision EV; results page
