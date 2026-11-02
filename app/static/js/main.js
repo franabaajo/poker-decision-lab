@@ -1,8 +1,9 @@
 // Entry point for the frontend. Plain ES modules, no build step (ADR 0006).
 
-import { getCards, getHealth, validateSpot } from "./api.js";
+import { computeEquity, getCards, getHealth, validateSpot } from "./api.js";
 import { CardPicker } from "./cardPicker.js";
 import { RangePanel } from "./rangePanel.js";
+import { markStale, renderEquity, renderStatus } from "./results.js";
 
 const $ = (id) => document.getElementById(id);
 
@@ -27,9 +28,49 @@ function setStatus(kind, text) {
 
 let requestId = 0; // ignore out-of-order responses when the user clicks quickly
 const rangePanel = new RangePanel();
+const state = { spotValid: false, hero: [], board: [], method: "auto" };
+
+function updateAnalyseButton() {
+  $("analyse").disabled = !(state.spotValid && rangePanel.liveCombos > 0);
+}
+
+rangePanel.onChange = () => {
+  markStale();
+  updateAnalyseButton();
+};
+
+async function analyse() {
+  const btn = $("analyse");
+  btn.disabled = true;
+  btn.textContent = "Calculating…";
+  renderStatus("info", "Calculating…");
+  const seed = $("seed").value === "" ? null : Number($("seed").value);
+  try {
+    const r = await computeEquity({
+      hero: state.hero,
+      board: state.board,
+      range_weights: rangePanel.weights,
+      method: state.method,
+      samples: Number($("samples").value),
+      seed,
+    });
+    if (r.valid) renderEquity(r);
+    else renderStatus("error", r.error);
+  } catch (err) {
+    console.error(err);
+    renderStatus("error", "The calculation failed: could not reach the server.");
+  } finally {
+    btn.textContent = "Analyse decision";
+    updateAnalyseButton();
+  }
+}
 
 async function onSpotChange({ hero, board }) {
-  $("analyse").disabled = true;
+  state.spotValid = false;
+  state.hero = hero;
+  state.board = board;
+  updateAnalyseButton();
+  markStale();
   rangePanel.setDeadCards(hero, board);
   if (hero.length < 2) {
     setStatus("info", `Pick your ${2 - hero.length === 2 ? "two hole cards" : "second hole card"}.`);
@@ -40,6 +81,8 @@ async function onSpotChange({ hero, board }) {
     const result = await validateSpot(hero, board);
     if (id !== requestId) return;
     if (result.valid) {
+      state.spotValid = true;
+      updateAnalyseButton();
       const boardText = result.board.length ? result.board.join(" ") : "no board yet";
       setStatus("ok", `${result.street}: ${result.hero.join(" ")} | ${boardText}`);
     } else {
@@ -65,6 +108,16 @@ async function init() {
   $("clear-hero").addEventListener("click", () => picker.clear("hero"));
   $("clear-board").addEventListener("click", () => picker.clear("board"));
   $("load-example").addEventListener("click", () => picker.set(["As", "Qs"], ["Js", "8d", "4s"]));
+  $("analyse").addEventListener("click", analyse);
+  $("samples").addEventListener("change", markStale);
+  $("seed").addEventListener("input", markStale);
+  for (const btn of $("method").querySelectorAll("button")) {
+    btn.addEventListener("click", () => {
+      state.method = btn.dataset.method;
+      for (const b of $("method").querySelectorAll("button")) b.classList.toggle("is-on", b === btn);
+      markStale();
+    });
+  }
   onSpotChange(picker.value);
 }
 

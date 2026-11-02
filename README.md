@@ -8,7 +8,7 @@ You enter your hole cards, the board, the pot, the bet, effective stacks and an 
 
 > **Not a gambling tool.** It does not know anyone's cards, does not connect to live games and guarantees nothing. Every result is conditional on the assumed opponent range and strategy.
 
-**Status:** milestone M3 (opponent ranges). See the [roadmap](#roadmap).
+**Status:** milestone M4 (equity engine). See the [roadmap](#roadmap).
 
 ## Quick start
 
@@ -54,7 +54,7 @@ The engine never imports the web layer, which keeps it testable, benchmarkable a
 - [x] **M1** Cards, validation and card picker
 - [x] **M2** Hand evaluator, verified against exhaustive 5-card category counts
 - [x] **M3** Ranges, combos, card removal; presets + range grid
-- [ ] **M4** Equity engine: exact enumeration + Monte Carlo with confidence intervals
+- [x] **M4** Equity engine: exact enumeration + Monte Carlo with confidence intervals
 - [ ] **M5** Pot odds, break-even equity and single-decision EV; results page
 - [ ] **M6** Multi-street model: opponent profiles, hero best response, realised EV
 - [ ] **M7** Performance benchmarks and optimisation

@@ -5,6 +5,7 @@ Run locally with:
 """
 
 from pathlib import Path
+from typing import Literal
 
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
@@ -23,6 +24,7 @@ from pokerlab.cards import (
     rank_of,
     suit_of,
 )
+from pokerlab.equity import EquityError, calculate_equity
 from pokerlab.profiles import PROFILES
 from pokerlab.ranges import CLASS_COMBOS, Range, RangeError
 from pokerlab.spot import Spot
@@ -94,6 +96,41 @@ class RangeOut(BaseModel):
     live_combos: float = Field(0, description="Weighted combos after card removal")
     percent: float = Field(0, description="Share of all 1,326 starting hands")
     grid: list[GridCell] = []
+
+
+class EquityIn(BaseModel):
+    hero: list[str] = Field(examples=[["As", "Qs"]])
+    board: list[str] = Field(default_factory=list, examples=[["Js", "8d", "4s"]])
+    range_notation: str | None = Field(default=None, examples=["77+, ATs+, KTs+, QJs, AJo+, KQo"])
+    range_weights: dict[str, float] | None = None
+    method: Literal["auto", "exact", "monte_carlo"] = "auto"
+    samples: int = Field(default=50_000, ge=1_000, le=500_000)
+    seed: int | None = Field(default=None, ge=0, lt=2**32)
+
+
+class ClassEquityOut(BaseModel):
+    label: str
+    share: float = Field(description="Fraction of the live, weighted range")
+    equity: float
+    win: float
+    tie: float
+
+
+class EquityOut(BaseModel):
+    valid: bool
+    error: str | None = None
+    win: float = 0
+    tie: float = 0
+    lose: float = 0
+    equity: float = 0
+    std_error: float = 0
+    ci95: tuple[float, float] = (0, 0)
+    method: str = ""
+    n: int = Field(0, description="Monte Carlo samples, or showdowns enumerated (exact)")
+    live_combos: float = 0
+    seed: int | None = None
+    elapsed_ms: float = 0
+    by_class: list[ClassEquityOut] = []
 
 
 # --- Routes -----------------------------------------------------------------------
@@ -190,6 +227,42 @@ def analyse_range(range_in: RangeIn) -> RangeOut:
         live_combos=rng.live_combo_count(dead),
         percent=round(100 * rng.fraction(), 1),
         grid=grid,
+    )
+
+
+@app.post("/api/equity")
+def equity(body: EquityIn) -> EquityOut:
+    """Hero's win / tie / lose probabilities and equity against the opponent range."""
+    try:
+        spot = Spot(
+            tuple(parse_card(c) for c in body.hero),
+            tuple(parse_card(c) for c in body.board),
+        )
+        rng = (
+            Range(body.range_weights)
+            if body.range_weights is not None
+            else Range.parse(body.range_notation or "")
+        )
+        result = calculate_equity(spot, rng, body.method, body.samples, body.seed)
+    except (CardError, RangeError, EquityError) as exc:
+        return EquityOut(valid=False, error=str(exc))
+    return EquityOut(
+        valid=True,
+        win=result.win,
+        tie=result.tie,
+        lose=result.lose,
+        equity=result.equity,
+        std_error=result.estimate.std_error,
+        ci95=result.ci95,
+        method=result.method,
+        n=result.estimate.n,
+        live_combos=result.live_combos,
+        seed=result.seed,
+        elapsed_ms=round(result.elapsed_s * 1000, 1),
+        by_class=[
+            ClassEquityOut(label=c.label, share=c.share, equity=c.equity, win=c.win, tie=c.tie)
+            for c in result.by_class.values()
+        ],
     )
 
 

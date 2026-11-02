@@ -19,3 +19,4 @@ Each Architecture Decision Record captures one project decision: the context, th
 | [0013](0013-meaning-of-range.md) | The range = hands the opponent holds given this bet | Accepted |
 | [0014](0014-preset-profiles.md) | Tight / Balanced / Aggressive presets (~10/20/35%) | Accepted |
 | [0015](0015-range-weights.md) | Ranges carry partial weights | Accepted |
+| [0016](0016-equity-calculation.md) | Equity by exact enumeration or Monte Carlo with 95% CIs | Accepted |

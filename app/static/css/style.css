@@ -200,3 +200,37 @@ button.chip:hover { color: var(--text); }
 }
 .field--text textarea[aria-invalid="true"] { border-color: var(--bad); }
 .text-error { color: var(--bad); min-height: 1em; }
+
+/* --- M4: results ----------------------------------------------------------------- */
+
+:root { --win: #4fbf85; --tie: #93a89e; --lose: #e26d5c; }
+
+.settings { margin-bottom: .9rem; font-size: .85rem; }
+.settings summary { cursor: pointer; color: var(--muted); }
+.settings__body { padding-top: .75rem; }
+.field-row--2 { grid-template-columns: 1fr 1fr; margin-top: 0; }
+.field select {
+  background: var(--surface-2); border: 1px solid var(--border); color: var(--text);
+  border-radius: 8px; padding: .45rem .5rem; font: inherit;
+}
+
+.wtl { display: flex; height: 14px; border-radius: 7px; overflow: hidden; background: var(--surface-2); margin: 1rem 0 .4rem; }
+.wtl__seg { display: block; height: 100%; transition: width .3s; }
+.wtl__seg--win { background: var(--win); }
+.wtl__seg--tie { background: var(--tie); }
+.wtl__seg--lose { background: var(--lose); }
+.wtl-legend { display: flex; gap: 1rem; font-size: .85rem; color: var(--muted); margin-bottom: 1rem; flex-wrap: wrap; }
+.wtl-legend b { color: var(--text); font-variant-numeric: tabular-nums; }
+.dot { display: inline-block; width: .6rem; height: .6rem; border-radius: 50%; margin-right: .35rem; }
+.dot--win { background: var(--win); } .dot--tie { background: var(--tie); } .dot--lose { background: var(--lose); }
+
+.stat__sub { font-size: .75rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.explain { font-size: .9rem; margin: 1rem 0 .25rem; }
+.subhead { font-size: .85rem; font-weight: 600; color: var(--muted); margin: 1.25rem 0 .5rem; }
+
+.heatmap .hcell {
+  aspect-ratio: 1.25; border-radius: 3px; display: flex; align-items: center; justify-content: center;
+  font-size: clamp(.42rem, .7vw, .6rem); font-weight: 600; background: var(--surface-2); color: transparent;
+}
+.heatmap .hcell--in { color: #10201a; }
+#results-body.is-stale { opacity: .45; }

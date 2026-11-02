@@ -15,6 +15,8 @@ export class RangePanel {
     this.presets = [];
     this.activePreset = null;
     this.requestId = 0;
+    this.liveCombos = 0;
+    this.onChange = null; // set by main.js
     this.grid = new RangeGrid($("range-grid"), (weights) => {
       this.activePreset = null;
       this.#analyse({ weights });
@@ -120,8 +122,10 @@ export class RangePanel {
     this.grid.render(result.grid);
     // Don't rewrite the box while the user is typing in it.
     if (!fromText && !(keepText && document.activeElement === text)) text.value = result.notation;
+    this.liveCombos = result.live_combos;
     this.#renderPresetState();
     this.#renderSummary(result);
+    this.onChange?.();
   }
 
   #renderPresetState() {

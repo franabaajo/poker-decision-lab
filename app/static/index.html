@@ -83,13 +83,58 @@
 
     <section class="panel panel--results" aria-labelledby="results-title">
       <h2 id="results-title">Results</h2>
+
+      <details class="settings">
+        <summary>Calculation settings</summary>
+        <div class="settings__body">
+          <div class="field">
+            <span class="label">Method</span>
+            <div id="method" class="segmented" role="group" aria-label="Calculation method">
+              <button type="button" data-method="auto" class="is-on" title="Exact when it takes a few seconds or less, otherwise Monte Carlo">Auto</button>
+              <button type="button" data-method="exact" title="Every possible opponent hand and remaining board (flop/turn/river only)">Exact</button>
+              <button type="button" data-method="monte_carlo" title="Random sampling with a confidence interval">Monte Carlo</button>
+            </div>
+          </div>
+          <div class="field-row field-row--2">
+            <label class="field">Monte Carlo samples
+              <select id="samples">
+                <option value="10000">10,000 (±1 pt)</option>
+                <option value="50000" selected>50,000 (±0.4 pt)</option>
+                <option value="200000">200,000 (±0.2 pt)</option>
+              </select>
+            </label>
+            <label class="field">Seed <input id="seed" type="number" min="0" placeholder="random"><small>same seed = same result</small></label>
+          </div>
+        </div>
+      </details>
+
       <button id="analyse" class="btn" type="button" disabled>Analyse decision</button>
-      <p class="hint">Equity, confidence intervals and EV arrive in M4–M6.</p>
-      <div class="stats">
-        <div class="stat"><span class="stat__label">Equity</span><span class="stat__value">—</span></div>
-        <div class="stat"><span class="stat__label">Break-even equity</span><span class="stat__value">—</span></div>
-        <div class="stat"><span class="stat__label">Call EV</span><span class="stat__value">—</span></div>
-        <div class="stat"><span class="stat__label">Decision</span><span class="stat__value">—</span></div>
+      <p id="results-status" class="status status--info" role="status" aria-live="polite">Pick your two cards and an opponent range, then click Analyse.</p>
+
+      <div id="results-body" hidden>
+        <div class="wtl" aria-hidden="true">
+          <span id="bar-win" class="wtl__seg wtl__seg--win"></span><span id="bar-tie" class="wtl__seg wtl__seg--tie"></span><span id="bar-lose" class="wtl__seg wtl__seg--lose"></span>
+        </div>
+        <div class="wtl-legend">
+          <span><i class="dot dot--win"></i>Win <b id="p-win"></b></span>
+          <span><i class="dot dot--tie"></i>Split <b id="p-tie"></b></span>
+          <span><i class="dot dot--lose"></i>Lose <b id="p-lose"></b></span>
+        </div>
+
+        <div class="stats">
+          <div class="stat"><span class="stat__label">Equity</span><span id="v-equity" class="stat__value">—</span><span id="v-ci" class="stat__sub"></span></div>
+          <div class="stat"><span class="stat__label">Break-even equity</span><span class="stat__value">—</span><span class="stat__sub">M5</span></div>
+          <div class="stat"><span class="stat__label">Call EV</span><span class="stat__value">—</span><span class="stat__sub">M5</span></div>
+          <div class="stat"><span class="stat__label">Decision</span><span class="stat__value">—</span><span class="stat__sub">M5</span></div>
+        </div>
+
+        <p id="explain" class="explain"></p>
+        <p id="method-info" class="hint"></p>
+
+        <h3 class="subhead">Your equity against each hand in the range</h3>
+        <div id="heatmap" class="range-grid heatmap"></div>
+        <p class="hint">Green: you are ahead of that hand · red: behind. Empty cells are not in the range.
+          Hover a cell for details.</p>
       </div>
     </section>
   </main>
