@@ -1,9 +1,9 @@
 // Entry point for the frontend. Plain ES modules, no build step (ADR 0006).
 
-import { computeEquity, getCards, getHealth, validateSpot } from "./api.js";
+import { analyseDecision, getCards, getHealth, validateSpot } from "./api.js";
 import { CardPicker } from "./cardPicker.js";
 import { RangePanel } from "./rangePanel.js";
-import { markStale, renderEquity, renderStatus } from "./results.js";
+import { markStale, renderAnalysis, renderStatus } from "./results.js";
 
 const $ = (id) => document.getElementById(id);
 
@@ -30,8 +30,33 @@ let requestId = 0; // ignore out-of-order responses when the user clicks quickly
 const rangePanel = new RangePanel();
 const state = { spotValid: false, hero: [], board: [], method: "auto" };
 
+function readAmounts() {
+  const values = {};
+  let ok = true;
+  for (const [id, min] of [["pot", 0], ["bet", 0], ["stack", 0]]) {
+    const input = $(id);
+    const v = Number(input.value);
+    const valid = input.value !== "" && Number.isFinite(v) && (id === "pot" ? v >= min : v > min);
+    input.setAttribute("aria-invalid", valid ? "false" : "true");
+    ok &&= valid;
+    values[id] = v;
+  }
+  const note = $("amounts-status");
+  if (!ok) {
+    note.textContent = "Enter a pot of 0 or more, and a bet and stack above 0.";
+  } else if (values.bet >= values.stack) {
+    note.textContent =
+      values.bet > values.stack
+        ? `All-in: you can only call ${values.stack} chips; the other ${values.bet - values.stack} go back to the opponent. No more betting after a call, so the EV is exact.`
+        : "All-in: no more betting after a call, so the EV is exact.";
+  } else {
+    note.textContent = "Heads-up: you against one opponent who has just bet.";
+  }
+  return ok ? values : null;
+}
+
 function updateAnalyseButton() {
-  $("analyse").disabled = !(state.spotValid && rangePanel.liveCombos > 0);
+  $("analyse").disabled = !(state.spotValid && rangePanel.liveCombos > 0 && readAmounts());
 }
 
 rangePanel.onChange = () => {
@@ -46,7 +71,8 @@ async function analyse() {
   renderStatus("info", "Calculating…");
   const seed = $("seed").value === "" ? null : Number($("seed").value);
   try {
-    const r = await computeEquity({
+    const r = await analyseDecision({
+      ...readAmounts(),
       hero: state.hero,
       board: state.board,
       range_weights: rangePanel.weights,
@@ -54,7 +80,7 @@ async function analyse() {
       samples: Number($("samples").value),
       seed,
     });
-    if (r.valid) renderEquity(r);
+    if (r.valid) renderAnalysis(r);
     else renderStatus("error", r.error);
   } catch (err) {
     console.error(err);
@@ -110,6 +136,12 @@ async function init() {
   $("load-example").addEventListener("click", () => picker.set(["As", "Qs"], ["Js", "8d", "4s"]));
   $("analyse").addEventListener("click", analyse);
   $("samples").addEventListener("change", markStale);
+  for (const id of ["pot", "bet", "stack"]) {
+    $(id).addEventListener("input", () => {
+      markStale();
+      updateAnalyseButton();
+    });
+  }
   $("seed").addEventListener("input", markStale);
   for (const btn of $("method").querySelectorAll("button")) {
     btn.addEventListener("click", () => {

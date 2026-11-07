@@ -24,7 +24,8 @@ from pokerlab.cards import (
     rank_of,
     suit_of,
 )
-from pokerlab.equity import EquityError, calculate_equity
+from pokerlab.decision import DecisionError, Situation, decide, explain
+from pokerlab.equity import EquityError, EquityResult, calculate_equity
 from pokerlab.profiles import PROFILES
 from pokerlab.ranges import CLASS_COMBOS, Range, RangeError
 from pokerlab.spot import Spot
@@ -133,6 +134,32 @@ class EquityOut(BaseModel):
     by_class: list[ClassEquityOut] = []
 
 
+class AnalyseIn(EquityIn):
+    pot: float = Field(ge=0, examples=[100], description="Chips in the pot before the bet")
+    bet: float = Field(gt=0, examples=[50], description="The opponent's bet")
+    stack: float = Field(gt=0, examples=[500], description="Effective stack before the bet")
+
+
+class DecisionOut(BaseModel):
+    call: float
+    returned: float = Field(description="Part of the bet that cannot be called")
+    is_all_in: bool
+    final_pot: float
+    break_even_equity: float
+    pot_odds: float = Field(description="X in 'X : 1'")
+    ev_fold: float
+    ev_call: float
+    ev_call_ci95: tuple[float, float]
+    margin: float = Field(description="Equity minus break-even equity")
+    verdict: str
+    verdict_label: str
+    explanation: str
+
+
+class AnalyseOut(EquityOut):
+    decision: DecisionOut | None = None
+
+
 # --- Routes -----------------------------------------------------------------------
 
 
@@ -230,23 +257,21 @@ def analyse_range(range_in: RangeIn) -> RangeOut:
     )
 
 
-@app.post("/api/equity")
-def equity(body: EquityIn) -> EquityOut:
-    """Hero's win / tie / lose probabilities and equity against the opponent range."""
-    try:
-        spot = Spot(
-            tuple(parse_card(c) for c in body.hero),
-            tuple(parse_card(c) for c in body.board),
-        )
-        rng = (
-            Range(body.range_weights)
-            if body.range_weights is not None
-            else Range.parse(body.range_notation or "")
-        )
-        result = calculate_equity(spot, rng, body.method, body.samples, body.seed)
-    except (CardError, RangeError, EquityError) as exc:
-        return EquityOut(valid=False, error=str(exc))
-    return EquityOut(
+def _run_equity(body: EquityIn) -> EquityResult:
+    spot = Spot(
+        tuple(parse_card(c) for c in body.hero),
+        tuple(parse_card(c) for c in body.board),
+    )
+    rng = (
+        Range(body.range_weights)
+        if body.range_weights is not None
+        else Range.parse(body.range_notation or "")
+    )
+    return calculate_equity(spot, rng, body.method, body.samples, body.seed)
+
+
+def _equity_fields(result: EquityResult) -> dict:
+    return dict(
         valid=True,
         win=result.win,
         tie=result.tie,
@@ -263,6 +288,45 @@ def equity(body: EquityIn) -> EquityOut:
             ClassEquityOut(label=c.label, share=c.share, equity=c.equity, win=c.win, tie=c.tie)
             for c in result.by_class.values()
         ],
+    )
+
+
+@app.post("/api/equity")
+def equity(body: EquityIn) -> EquityOut:
+    """Hero's win / tie / lose probabilities and equity against the opponent range."""
+    try:
+        result = _run_equity(body)
+    except (CardError, RangeError, EquityError) as exc:
+        return EquityOut(valid=False, error=str(exc))
+    return EquityOut(**_equity_fields(result))
+
+
+@app.post("/api/analyse")
+def analyse(body: AnalyseIn) -> AnalyseOut:
+    """Equity plus pot odds, break-even equity, fold/call EV and a verdict."""
+    try:
+        situation = Situation(pot=body.pot, bet=body.bet, stack=body.stack)
+        result = _run_equity(body)
+    except (CardError, RangeError, EquityError, DecisionError) as exc:
+        return AnalyseOut(valid=False, error=str(exc))
+    d = decide(situation, result.equity, result.ci95)
+    return AnalyseOut(
+        **_equity_fields(result),
+        decision=DecisionOut(
+            call=situation.call,
+            returned=situation.returned,
+            is_all_in=situation.is_all_in,
+            final_pot=situation.final_pot,
+            break_even_equity=situation.break_even_equity,
+            pot_odds=situation.pot_odds,
+            ev_fold=d.ev_fold,
+            ev_call=d.ev_call,
+            ev_call_ci95=d.ev_call_ci95,
+            margin=d.margin,
+            verdict=d.verdict.value,
+            verdict_label=d.verdict.label,
+            explanation=explain(d),
+        ),
     )
 
 

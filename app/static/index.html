@@ -43,11 +43,11 @@
       <p class="hint">Click a card to fill the highlighted slot. Click a placed card to remove it. Used cards are greyed out.</p>
 
       <div class="field-row">
-        <label class="field">Pot before bet <input type="number" disabled placeholder="100"><small>chips</small></label>
-        <label class="field">Opponent bet <input type="number" disabled placeholder="50"><small>chips</small></label>
-        <label class="field">Effective stack <input type="number" disabled placeholder="500"><small>chips</small></label>
+        <label class="field">Pot before bet <input id="pot" type="number" min="0" step="any" value="100"><small>chips in the middle</small></label>
+        <label class="field">Opponent bet <input id="bet" type="number" min="0" step="any" value="50"><small>chips to call</small></label>
+        <label class="field">Effective stack <input id="stack" type="number" min="0" step="any" value="500"><small>smaller stack, before the bet</small></label>
       </div>
-      <p class="hint">Chip amounts become editable in M5.</p>
+      <p id="amounts-status" class="hint">Heads-up: you against one opponent who has just bet.</p>
     </section>
 
     <section class="panel panel--range" aria-labelledby="range-title">
@@ -123,13 +123,19 @@
 
         <div class="stats">
           <div class="stat"><span class="stat__label">Equity</span><span id="v-equity" class="stat__value">—</span><span id="v-ci" class="stat__sub"></span></div>
-          <div class="stat"><span class="stat__label">Break-even equity</span><span class="stat__value">—</span><span class="stat__sub">M5</span></div>
-          <div class="stat"><span class="stat__label">Call EV</span><span class="stat__value">—</span><span class="stat__sub">M5</span></div>
-          <div class="stat"><span class="stat__label">Decision</span><span class="stat__value">—</span><span class="stat__sub">M5</span></div>
+          <div class="stat"><span class="stat__label">Break-even equity</span><span id="v-be" class="stat__value">—</span><span id="v-odds" class="stat__sub"></span></div>
+          <div class="stat"><span class="stat__label">Call EV <small>(fold = 0)</small></span><span id="v-ev" class="stat__value">—</span><span id="v-ev-ci" class="stat__sub"></span></div>
+          <div class="stat stat--verdict"><span class="stat__label">Mathematical decision</span><span id="v-verdict" class="stat__value">—</span><span id="v-margin" class="stat__sub"></span></div>
         </div>
 
         <p id="explain" class="explain"></p>
+        <p id="explain-range" class="hint"></p>
         <p id="method-info" class="hint"></p>
+
+        <h3 class="subhead">EV of calling at every possible equity</h3>
+        <div id="ev-chart" class="ev-chart"></div>
+        <p class="hint">The line crosses zero at the break-even equity. The dot is your equity
+          (with its confidence interval). Right of the dashed line, calling beats folding.</p>
 
         <h3 class="subhead">Your equity against each hand in the range</h3>
         <div id="heatmap" class="range-grid heatmap"></div>

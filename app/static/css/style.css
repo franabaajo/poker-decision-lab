@@ -234,3 +234,21 @@ button.chip:hover { color: var(--text); }
 }
 .heatmap .hcell--in { color: #10201a; }
 #results-body.is-stale { opacity: .45; }
+
+/* --- M5: decision ---------------------------------------------------------------- */
+
+.field input:invalid, .field input[aria-invalid="true"] { border-color: var(--bad); }
+.stat__label small { font-size: .7rem; }
+.verdict--call { color: var(--win); }
+.verdict--fold { color: var(--lose); }
+.verdict--close { color: var(--accent); }
+.ev-chart svg { width: 100%; height: auto; display: block; }
+.ev-chart text { fill: var(--muted); font-size: 11px; font-family: inherit; }
+.ev-chart .axis { stroke: var(--border); }
+.ev-chart .zero { stroke: var(--muted); stroke-width: 1; }
+.ev-chart .be { stroke: var(--accent); stroke-dasharray: 4 3; }
+.ev-chart .ev-line { stroke: var(--text); stroke-width: 2; fill: none; }
+.ev-chart .gain { fill: rgba(79, 191, 133, .12); }
+.ev-chart .loss { fill: rgba(226, 109, 92, .12); }
+.ev-chart .ci { stroke: var(--accent); stroke-width: 6; stroke-linecap: round; opacity: .5; }
+.ev-chart .dot { fill: var(--accent); stroke: var(--bg); stroke-width: 2; }

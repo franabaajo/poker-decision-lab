@@ -24,3 +24,6 @@ export const analyseRange = (body) =>
 
 export const computeEquity = (body) =>
   request("/api/equity", { method: "POST", body: JSON.stringify(body) });
+
+export const analyseDecision = (body) =>
+  request("/api/analyse", { method: "POST", body: JSON.stringify(body) });
