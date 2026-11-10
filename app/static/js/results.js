@@ -72,18 +72,54 @@ function renderDecision(r) {
   const d = r.decision;
   $("v-be").textContent = pct(d.break_even_equity);
   $("v-odds").textContent = `pot odds ${d.pot_odds.toFixed(1)} : 1 · call ${chips(d.call)} to win ${chips(d.final_pot - d.call)}`;
-  $("v-ev").textContent = `${chips(d.ev_call, true)} chips`;
-  $("v-ev-ci").textContent =
-    r.method === "exact"
-      ? "exact"
-      : `95% CI ${chips(d.ev_call_ci95[0], true)} to ${chips(d.ev_call_ci95[1], true)}`;
+  const ms = r.multi_street;
+  if (ms?.available) {
+    $("v-ev").textContent = `${chips(ms.ev_call, true)} chips`;
+    $("v-ev-sub").innerHTML =
+      "with turn &amp; river betting<br>" + `${chips(d.ev_call, true)} chips if nobody bets again`;
+  } else {
+    $("v-ev").textContent = `${chips(d.ev_call, true)} chips`;
+    $("v-ev-sub").textContent =
+      r.method === "exact"
+        ? "showdown only, exact"
+        : `showdown only · 95% CI ${chips(d.ev_call_ci95[0], true)} to ${chips(d.ev_call_ci95[1], true)}`;
+  }
   const verdict = $("v-verdict");
   verdict.textContent = d.verdict_label;
   verdict.className = `stat__value verdict--${d.verdict}`;
-  const m = 100 * d.margin;
-  $("v-margin").textContent = `equity ${m >= 0 ? "+" : "−"}${Math.abs(m).toFixed(1)} pts vs break-even`;
+  const m = 100 * (ms?.available ? ms.realized_equity - d.break_even_equity : d.margin);
+  $("v-margin").textContent =
+    `${ms?.available ? "realised " : ""}equity ${m >= 0 ? "+" : "−"}${Math.abs(m).toFixed(1)} pts vs break-even`;
   $("explain").textContent = d.explanation;
+  renderAfterCall(r);
   renderEvChart(r);
+}
+
+function renderAfterCall(r) {
+  const ms = r.multi_street;
+  const box = $("after-call");
+  if (!ms?.available || ms.later_streets === 0 || (ms.stats.bet_turn === 0 && ms.stats.bet_river === 0)) {
+    box.hidden = !ms || ms.available; // show the note (e.g. preflop) when not available
+    $("after-call-list").innerHTML = "";
+    $("realization").textContent = ms?.available ? "" : ms?.note ?? "";
+    return;
+  }
+  box.hidden = false;
+  const s = ms.stats;
+  const rows = [];
+  if (ms.later_streets === 2) {
+    rows.push(["Opponent bets the turn", s.bet_turn]);
+    rows.push(["You fold on the turn", s.fold_turn]);
+  }
+  rows.push(["Opponent bets the river", s.bet_river]);
+  rows.push(["You fold on the river", s.fold_river]);
+  rows.push(["The hand reaches showdown", s.showdown]);
+  $("after-call-list").innerHTML = rows
+    .map(([label, p]) => `<li><span>${label}</span><b>${pct(p, 0)}</b></li>`)
+    .join("");
+  $("realization").textContent =
+    `You realise ${pct(ms.realization, 0)} of your raw equity (${pct(ms.realized_equity)} instead of ${pct(r.equity)}). ` +
+    `Probabilities are for the hand after you call, with the opponent's ${ms.strategy.name.toLowerCase()} betting style and your best responses.`;
 }
 
 function explainRange(r) {
@@ -119,6 +155,9 @@ function renderEvChart(r) {
     <line class="ev-line" x1="${x(0)}" y1="${y(lo)}" x2="${x(1)}" y2="${y(hi)}"/>
     ${ch > cl ? `<line class="ci" x1="${x(cl)}" y1="${y(d.ev_call_ci95[0])}" x2="${x(ch)}" y2="${y(d.ev_call_ci95[1])}"/>` : ""}
     <circle class="dot" cx="${x(r.equity)}" cy="${y(d.ev_call)}" r="5"/>
+    ${r.multi_street?.available && Math.abs(r.multi_street.ev_call - d.ev_call) > 0.05
+      ? `<circle class="dot dot--real" cx="${x(Math.min(1, Math.max(0, r.multi_street.realized_equity)))}" cy="${y(Math.min(hi, Math.max(lo, r.multi_street.ev_call)))}" r="5"/>`
+      : ""}
     <text x="${L - 6}" y="${y(hi) + 4}" text-anchor="end">${fmt(hi)}</text>
     <text x="${L - 6}" y="${y(0) + 4}" text-anchor="end">0</text>
     <text x="${L - 6}" y="${y(lo) + 4}" text-anchor="end">${fmt(lo)}</text>

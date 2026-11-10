@@ -26,6 +26,8 @@ from pokerlab.cards import (
 )
 from pokerlab.decision import DecisionError, Situation, decide, explain
 from pokerlab.equity import EquityError, EquityResult, calculate_equity
+from pokerlab.multistreet import MultiStreetError, analyse_call
+from pokerlab.multistreet import explain as explain_multistreet
 from pokerlab.profiles import PROFILES
 from pokerlab.ranges import CLASS_COMBOS, Range, RangeError
 from pokerlab.spot import Spot
@@ -71,6 +73,9 @@ class PresetOut(BaseModel):
     notation: str
     combos: float
     percent: float
+    bet_fraction: float
+    value_share: float
+    bluff_share: float
 
 
 class RangeIn(BaseModel):
@@ -138,6 +143,9 @@ class AnalyseIn(EquityIn):
     pot: float = Field(ge=0, examples=[100], description="Chips in the pot before the bet")
     bet: float = Field(gt=0, examples=[50], description="The opponent's bet")
     stack: float = Field(gt=0, examples=[500], description="Effective stack before the bet")
+    style: Literal["tight", "balanced", "aggressive"] = Field(
+        default="balanced", description="Opponent's betting style on the turn and river"
+    )
 
 
 class DecisionOut(BaseModel):
@@ -153,11 +161,35 @@ class DecisionOut(BaseModel):
     margin: float = Field(description="Equity minus break-even equity")
     verdict: str
     verdict_label: str
+    verdict_basis: str = Field(description="'multi_street' or 'showdown'")
     explanation: str
+
+
+class StrategyOut(BaseModel):
+    key: str
+    name: str
+    bet_fraction: float
+    value_share: float
+    bluff_share: float
+    bet_share: float
+
+
+class MultiStreetOut(BaseModel):
+    available: bool
+    note: str | None = None
+    ev_call: float = 0
+    ev_showdown: float = 0
+    realized_equity: float = 0
+    realization: float = 0
+    later_streets: int = 0
+    stats: dict[str, float] = {}
+    strategy: StrategyOut | None = None
+    elapsed_ms: float = 0
 
 
 class AnalyseOut(EquityOut):
     decision: DecisionOut | None = None
+    multi_street: MultiStreetOut | None = None
 
 
 # --- Routes -----------------------------------------------------------------------
@@ -217,6 +249,9 @@ def list_presets() -> list[PresetOut]:
             notation=p.notation,
             combos=p.range.combo_count(),
             percent=round(100 * p.range.fraction(), 1),
+            bet_fraction=p.strategy.bet_fraction,
+            value_share=p.strategy.value_share,
+            bluff_share=p.strategy.bluff_share,
         )
         for p in PROFILES.values()
     ]
@@ -257,7 +292,7 @@ def analyse_range(range_in: RangeIn) -> RangeOut:
     )
 
 
-def _run_equity(body: EquityIn) -> EquityResult:
+def _parse(body: EquityIn) -> tuple[Spot, Range]:
     spot = Spot(
         tuple(parse_card(c) for c in body.hero),
         tuple(parse_card(c) for c in body.board),
@@ -267,6 +302,11 @@ def _run_equity(body: EquityIn) -> EquityResult:
         if body.range_weights is not None
         else Range.parse(body.range_notation or "")
     )
+    return spot, rng
+
+
+def _run_equity(body: EquityIn) -> EquityResult:
+    spot, rng = _parse(body)
     return calculate_equity(spot, rng, body.method, body.samples, body.seed)
 
 
@@ -303,13 +343,51 @@ def equity(body: EquityIn) -> EquityOut:
 
 @app.post("/api/analyse")
 def analyse(body: AnalyseIn) -> AnalyseOut:
-    """Equity plus pot odds, break-even equity, fold/call EV and a verdict."""
+    """Equity, pot odds, fold/call EV and a verdict, including turn and river betting."""
     try:
         situation = Situation(pot=body.pot, bet=body.bet, stack=body.stack)
         result = _run_equity(body)
     except (CardError, RangeError, EquityError, DecisionError) as exc:
         return AnalyseOut(valid=False, error=str(exc))
     d = decide(situation, result.equity, result.ci95)
+
+    profile = PROFILES[body.style]
+    strategy = profile.strategy
+    strategy_out = StrategyOut(
+        key=profile.key,
+        name=profile.name,
+        bet_fraction=strategy.bet_fraction,
+        value_share=strategy.value_share,
+        bluff_share=strategy.bluff_share,
+        bet_share=strategy.bet_share,
+    )
+    spot, rng = _parse(body)
+    try:
+        ms = analyse_call(spot, rng, situation, strategy)
+    except MultiStreetError as exc:
+        ms = None
+        multi = MultiStreetOut(available=False, note=str(exc), strategy=strategy_out)
+    else:
+        multi = MultiStreetOut(
+            available=True,
+            ev_call=ms.ev_call,
+            ev_showdown=ms.ev_showdown,
+            realized_equity=ms.realized_equity,
+            realization=ms.realization,
+            later_streets=ms.later_streets,
+            stats=ms.stats,
+            strategy=strategy_out,
+            elapsed_ms=round(ms.elapsed_s * 1000, 1),
+        )
+
+    if ms is not None:
+        call_wins = ms.ev_call > 0
+        verdict, label = ("call", "Call") if call_wins else ("fold", "Fold")
+        basis, text = "multi_street", explain_multistreet(ms, strategy, profile.name)
+    else:
+        verdict, label = d.verdict.value, d.verdict.label
+        basis, text = "showdown", explain(d)
+
     return AnalyseOut(
         **_equity_fields(result),
         decision=DecisionOut(
@@ -323,10 +401,12 @@ def analyse(body: AnalyseIn) -> AnalyseOut:
             ev_call=d.ev_call,
             ev_call_ci95=d.ev_call_ci95,
             margin=d.margin,
-            verdict=d.verdict.value,
-            verdict_label=d.verdict.label,
-            explanation=explain(d),
+            verdict=verdict,
+            verdict_label=label,
+            verdict_basis=basis,
+            explanation=text,
         ),
+        multi_street=multi,
     )
 
 

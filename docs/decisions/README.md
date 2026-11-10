@@ -21,3 +21,6 @@ Each Architecture Decision Record captures one project decision: the context, th
 | [0015](0015-range-weights.md) | Ranges carry partial weights | Accepted |
 | [0016](0016-equity-calculation.md) | Equity by exact enumeration or Monte Carlo with 95% CIs | Accepted |
 | [0017](0017-pot-odds-and-ev.md) | Pot odds, EV relative to folding, CI-aware verdict | Accepted |
+| [0018](0018-opponent-betting-rule.md) | Opponent bets by a value/bluff rule; hero best-responds | Accepted |
+| [0019](0019-style-parameters.md) | Tight / Balanced / Aggressive betting parameters | Accepted |
+| [0020](0020-hand-strength-for-betting.md) | Opponent ranks hands by current made-hand strength | Accepted |

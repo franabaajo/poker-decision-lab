@@ -17,6 +17,7 @@ export class RangePanel {
     this.requestId = 0;
     this.liveCombos = 0;
     this.onChange = null; // set by main.js
+    this.style = "balanced"; // opponent betting style on later streets
     this.grid = new RangeGrid($("range-grid"), (weights) => {
       this.activePreset = null;
       this.#analyse({ weights });
@@ -40,7 +41,25 @@ export class RangePanel {
     const preset = this.presets.find((p) => p.key === key);
     if (!preset) return;
     this.activePreset = key;
+    this.setStyle(key);
     await this.#analyse({ notation: preset.notation });
+  }
+
+  /** Betting style on the turn and river; a preset sets it, but it can be changed alone. */
+  setStyle(key) {
+    const preset = this.presets.find((p) => p.key === key);
+    if (!preset) return;
+    this.style = key;
+    for (const b of $("style").querySelectorAll("button")) {
+      b.classList.toggle("is-on", b.dataset.style === key);
+    }
+    const pct = (x) => `${Math.round(100 * x)}%`;
+    const size = { 0.5: "½ pot", 1: "a full pot" }[preset.bet_fraction] ??
+      (Math.abs(preset.bet_fraction - 2 / 3) < 1e-9 ? "⅔ pot" : `${pct(preset.bet_fraction)} of the pot`);
+    $("style-description").textContent =
+      `Bets ${size} with their strongest ${pct(preset.value_share)} of hands, ` +
+      `bluffs with ${pct(preset.bluff_share)} of the rest, checks otherwise.`;
+    this.onChange?.();
   }
 
   // --- internals --------------------------------------------------------------------
@@ -66,6 +85,9 @@ export class RangePanel {
   }
 
   #bindControls() {
+    for (const btn of $("style").querySelectorAll("button")) {
+      btn.addEventListener("click", () => this.setStyle(btn.dataset.style));
+    }
     for (const btn of $("paint-weights").querySelectorAll("button")) {
       btn.addEventListener("click", () => {
         this.grid.paintWeight = Number(btn.dataset.w);

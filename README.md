@@ -8,7 +8,7 @@ You enter your hole cards, the board, the pot, the bet, effective stacks and an 
 
 > **Not a gambling tool.** It does not know anyone's cards, does not connect to live games and guarantees nothing. Every result is conditional on the assumed opponent range and strategy.
 
-**Status:** milestone M5 (pot odds, EV and the call/fold verdict). See the [roadmap](#roadmap).
+**Status:** milestone M6 (turn and river betting). See the [roadmap](#roadmap).
 
 ## Quick start
 
@@ -56,9 +56,16 @@ The engine never imports the web layer, which keeps it testable, benchmarkable a
 - [x] **M3** Ranges, combos, card removal; presets + range grid
 - [x] **M4** Equity engine: exact enumeration + Monte Carlo with confidence intervals
 - [x] **M5** Pot odds, break-even equity and single-decision EV; results page
-- [ ] **M6** Multi-street model: opponent profiles, hero best response, realised EV
+- [x] **M6** Multi-street model: opponent profiles, hero best response, realised EV
 - [ ] **M7** Performance benchmarks and optimisation
 - [ ] **M8** Mathematical write-up, research notebook, polished docs
+
+### Planned extensions (after the MVP)
+
+- **Raise option:** Fold / Call / Raise on the current decision, with an opponent response rule per style
+- **Multiway pots:** equity against two or more opponents
+- **Sensitivity analysis:** how the decision changes as the opponent's range and style vary
+- Board-aware hand strength for the opponent's betting rule (values draws)
 
 ## License
 

@@ -252,3 +252,13 @@ button.chip:hover { color: var(--text); }
 .ev-chart .loss { fill: rgba(226, 109, 92, .12); }
 .ev-chart .ci { stroke: var(--accent); stroke-width: 6; stroke-linecap: round; opacity: .5; }
 .ev-chart .dot { fill: var(--accent); stroke: var(--bg); stroke-width: 2; }
+
+/* --- M6: later streets ------------------------------------------------------------- */
+
+.style-field { margin-top: 1rem; }
+.style-field .segmented { margin-top: .35rem; }
+.after-call__list { list-style: none; padding: 0; margin: 0; display: grid; gap: .3rem; font-size: .85rem; }
+.after-call__list li { display: flex; justify-content: space-between; gap: 1rem; padding: .35rem .6rem;
+  background: var(--surface-2); border-radius: 6px; }
+.after-call__list b { font-variant-numeric: tabular-nums; }
+.ev-chart .dot--real { fill: var(--bg); stroke: var(--text); stroke-width: 2.5; }

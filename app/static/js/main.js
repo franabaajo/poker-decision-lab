@@ -77,6 +77,7 @@ async function analyse() {
       board: state.board,
       range_weights: rangePanel.weights,
       method: state.method,
+      style: rangePanel.style,
       samples: Number($("samples").value),
       seed,
     });

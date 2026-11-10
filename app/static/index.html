@@ -75,6 +75,16 @@
       <p class="hint">Upper right: suited (s) · lower left: offsuit (o) · diagonal: pairs.
         Partly filled cells are in the range only part of the time. Dimmed cells are impossible because of the cards shown.</p>
 
+      <div class="field style-field">
+        <div class="field__head"><span class="label">Their betting on the turn and river</span></div>
+        <div id="style" class="segmented" role="group" aria-label="Opponent betting style on later streets">
+          <button type="button" data-style="tight">Tight</button>
+          <button type="button" data-style="balanced" class="is-on">Balanced</button>
+          <button type="button" data-style="aggressive">Aggressive</button>
+        </div>
+        <p id="style-description" class="hint"></p>
+      </div>
+
       <label class="field field--text" for="range-text">Range as text
         <textarea id="range-text" rows="3" spellcheck="false" placeholder="e.g. TT+, AJs+, KQs, A5s:0.5"></textarea>
         <small id="range-text-error" class="text-error" aria-live="polite"></small>
@@ -124,18 +134,25 @@
         <div class="stats">
           <div class="stat"><span class="stat__label">Equity</span><span id="v-equity" class="stat__value">—</span><span id="v-ci" class="stat__sub"></span></div>
           <div class="stat"><span class="stat__label">Break-even equity</span><span id="v-be" class="stat__value">—</span><span id="v-odds" class="stat__sub"></span></div>
-          <div class="stat"><span class="stat__label">Call EV <small>(fold = 0)</small></span><span id="v-ev" class="stat__value">—</span><span id="v-ev-ci" class="stat__sub"></span></div>
+          <div class="stat"><span class="stat__label">Call EV <small>(fold = 0)</small></span><span id="v-ev" class="stat__value">—</span><span id="v-ev-sub" class="stat__sub"></span></div>
           <div class="stat stat--verdict"><span class="stat__label">Mathematical decision</span><span id="v-verdict" class="stat__value">—</span><span id="v-margin" class="stat__sub"></span></div>
         </div>
 
         <p id="explain" class="explain"></p>
+
+        <div id="after-call" class="after-call" hidden>
+          <h3 class="subhead">What happens after you call</h3>
+          <ul id="after-call-list" class="after-call__list"></ul>
+          <p id="realization" class="hint"></p>
+        </div>
         <p id="explain-range" class="hint"></p>
         <p id="method-info" class="hint"></p>
 
         <h3 class="subhead">EV of calling at every possible equity</h3>
         <div id="ev-chart" class="ev-chart"></div>
-        <p class="hint">The line crosses zero at the break-even equity. The dot is your equity
-          (with its confidence interval). Right of the dashed line, calling beats folding.</p>
+        <p class="hint">The line crosses zero at the break-even equity. The gold dot is your raw equity
+          (with its confidence interval); the white ring is the equity you actually realise once
+          later betting is included. Right of the dashed line, calling beats folding.</p>
 
         <h3 class="subhead">Your equity against each hand in the range</h3>
         <div id="heatmap" class="range-grid heatmap"></div>

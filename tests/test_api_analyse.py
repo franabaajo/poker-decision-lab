@@ -44,3 +44,38 @@ def test_equity_errors_still_reported():
         hero=["As", "Ah"], board=["Ad", "Ac", "2s"], range_notation="AA", pot=10, bet=5, stack=50
     )
     assert r["valid"] is False and r["decision"] is None
+
+
+# --- M6: later streets ------------------------------------------------------------------
+
+
+def test_multi_street_on_the_turn():
+    r = post(**TURN, pot=100, bet=50, stack=500, style="tight")
+    ms = r["multi_street"]
+    assert ms["available"] is True and ms["later_streets"] == 1
+    assert ms["strategy"]["key"] == "tight"
+    assert ms["ev_showdown"] == pytest.approx(r["decision"]["ev_call"])
+    assert r["decision"]["verdict_basis"] == "multi_street"
+    assert r["decision"]["verdict"] == ("call" if ms["ev_call"] > 0 else "fold")
+    assert set(ms["stats"]) >= {"bet_river", "fold_river", "showdown"}
+
+
+def test_preflop_falls_back_to_showdown_ev():
+    r = post(
+        hero=["As", "Ah"], range_notation="KK", samples=2_000, seed=1, pot=10, bet=5, stack=100
+    )
+    assert r["multi_street"]["available"] is False
+    assert r["multi_street"]["note"]
+    assert r["decision"]["verdict_basis"] == "showdown"
+
+
+def test_presets_include_strategies():
+    presets = client.get("/api/ranges/presets").json()
+    assert {p["key"]: p["bet_fraction"] for p in presets}["aggressive"] == 1.0
+
+
+def test_unknown_style_is_rejected():
+    response = client.post(
+        "/api/analyse", json=dict(**TURN, pot=100, bet=50, stack=500, style="wild")
+    )
+    assert response.status_code == 422
