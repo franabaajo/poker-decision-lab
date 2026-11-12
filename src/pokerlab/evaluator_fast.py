@@ -93,9 +93,12 @@ def _evaluate(cards: np.ndarray) -> np.ndarray:
     ranks, suits = cards // 4, cards % 4
     rows = np.arange(n)[:, None]
 
-    # 1. Counts per rank and per suit, for all hands at once.
-    rank_counts = np.bincount((rows * 13 + ranks).ravel(), minlength=n * 13).reshape(n, 13)
-    suit_counts = np.bincount((rows * 4 + suits).ravel(), minlength=n * 4).reshape(n, 4)
+    # 1. Counts per rank and per suit, for all hands at once. (bincount needs the
+    # platform's index type; on 32-bit WebAssembly in the browser that is int32.)
+    rank_idx = (rows * 13 + ranks).ravel().astype(np.intp)
+    suit_idx = (rows * 4 + suits).ravel().astype(np.intp)
+    rank_counts = np.bincount(rank_idx, minlength=n * 13).reshape(n, 13)
+    suit_counts = np.bincount(suit_idx, minlength=n * 4).reshape(n, 4)
 
     # 2. 13-bit masks of the ranks present, overall and in the flush suit.
     bits = 1 << ranks

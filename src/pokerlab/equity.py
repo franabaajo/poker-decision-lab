@@ -209,7 +209,7 @@ def monte_carlo_equity(
     hero_cards = np.array(spot.hero, dtype=np.int64)
 
     # Opponent hands for all samples, proportional to weight.
-    picks = gen.choice(len(villain), size=samples, p=weights / weights.sum())
+    picks = gen.choice(len(villain), size=samples, p=weights / weights.sum()).astype(np.intp)
     # in_combo[i, j]: live card j belongs to combo i (those cards cannot be dealt).
     in_combo = (live[None, :, None] == villain[:, None, :]).any(axis=2)
 
