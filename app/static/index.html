@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Poker Decision Lab</title>
   <meta name="description" content="Educational heads-up Texas Hold'em call/fold analyser: equity, pot odds and expected value under explicit assumptions.">
-  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/css/style.css">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
   <header class="topbar">
@@ -14,7 +14,7 @@
       <span class="logo" aria-hidden="true">♠</span>
       <h1>Poker Decision Lab</h1>
     </div>
-    <span id="api-status" class="pill pill--pending">API: checking…</span>
+    <span id="api-status" class="pill pill--pending">Engine: checking…</span>
   </header>
 
   <main class="layout">
@@ -37,7 +37,7 @@
         </div>
       </div>
 
-      <p id="spot-status" class="status status--info" role="status" aria-live="polite">Loading cards…</p>
+      <p id="spot-status" class="status status--info" role="status" aria-live="polite">Loading the engine… (first visit to the online demo: about 10–20 s)</p>
 
       <div id="card-grid" class="card-grid" aria-label="Deck: click a card to place it in the highlighted slot"></div>
       <p class="hint">Click a card to fill the highlighted slot. Click a placed card to remove it. Used cards are greyed out.</p>
@@ -167,6 +167,6 @@
       It does not know anyone's cards, does not connect to live games, and guarantees nothing.</p>
   </footer>
 
-  <script src="/js/main.js" type="module"></script>
+  <script src="js/main.js" type="module"></script>
 </body>
 </html>

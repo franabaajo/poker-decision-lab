@@ -20,6 +20,10 @@ dev = [
     "ruff>=0.6",
     "treys>=0.1.8",
 ]
+notebook = [
+    "jupyter>=1.1.1",
+    "matplotlib>=3.11.2",
+]
 
 [build-system]
 requires = ["hatchling"]

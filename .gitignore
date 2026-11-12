@@ -11,3 +11,5 @@ build/
 .ipynb_checkpoints/
 .DS_Store
 .env
+site/
+node_modules/

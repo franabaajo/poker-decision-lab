@@ -12,25 +12,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 import pokerlab
-from pokerlab.cards import (
-    DECK,
-    RANKS,
-    SUITS,
-    CardError,
-    card_name,
-    card_to_pretty,
-    card_to_str,
-    parse_card,
-    rank_of,
-    suit_of,
-)
-from pokerlab.decision import DecisionError, Situation, decide, explain
-from pokerlab.equity import EquityError, EquityResult, calculate_equity
-from pokerlab.multistreet import MultiStreetError, analyse_call
-from pokerlab.multistreet import explain as explain_multistreet
-from pokerlab.profiles import PROFILES
-from pokerlab.ranges import CLASS_COMBOS, Range, RangeError
-from pokerlab.spot import Spot
+from pokerlab import service
 
 STATIC_DIR = Path(__file__).parent / "static"
 
@@ -193,28 +175,20 @@ class AnalyseOut(EquityOut):
 
 
 # --- Routes -----------------------------------------------------------------------
+# Each endpoint validates its input with the schemas above, then calls the shared
+# service layer, which the in-browser (Pyodide) version of the app also uses.
 
 
 @app.get("/api/health")
 def health() -> dict[str, str]:
-    """Liveness check used by the frontend, tests and the deployment platform."""
-    return {"status": "ok", "version": pokerlab.__version__}
+    """Liveness check used by the frontend and tests."""
+    return service.health()
 
 
 @app.get("/api/cards")
 def list_cards() -> list[CardOut]:
     """The 52-card deck in engine order. The frontend builds its card picker from this."""
-    return [
-        CardOut(
-            id=c,
-            code=card_to_str(c),
-            pretty=card_to_pretty(c),
-            name=card_name(c),
-            rank=RANKS[rank_of(c)],
-            suit=SUITS[suit_of(c)],
-        )
-        for c in DECK
-    ]
+    return [CardOut(**c) for c in service.list_cards()]
 
 
 @app.post("/api/spot/validate")
@@ -223,38 +197,13 @@ def validate_spot(spot_in: SpotIn) -> SpotValidation:
 
     Invalid input is a normal answer (valid=false), not an HTTP error.
     """
-    try:
-        spot = Spot(
-            tuple(parse_card(c) for c in spot_in.hero),
-            tuple(parse_card(c) for c in spot_in.board),
-        )
-    except CardError as exc:
-        return SpotValidation(valid=False, error=str(exc))
-    return SpotValidation(
-        valid=True,
-        street=spot.street.label,
-        hero=[card_to_str(c) for c in spot.hero],
-        board=[card_to_str(c) for c in spot.board],
-    )
+    return SpotValidation(**service.validate_spot(spot_in.hero, spot_in.board))
 
 
 @app.get("/api/ranges/presets")
 def list_presets() -> list[PresetOut]:
     """The preset opponent profiles and their ranges."""
-    return [
-        PresetOut(
-            key=p.key,
-            name=p.name,
-            description=p.description,
-            notation=p.notation,
-            combos=p.range.combo_count(),
-            percent=round(100 * p.range.fraction(), 1),
-            bet_fraction=p.strategy.bet_fraction,
-            value_share=p.strategy.value_share,
-            bluff_share=p.strategy.bluff_share,
-        )
-        for p in PROFILES.values()
-    ]
+    return [PresetOut(**p) for p in service.list_presets()]
 
 
 @app.post("/api/ranges/analyse")
@@ -264,150 +213,19 @@ def analyse_range(range_in: RangeIn) -> RangeOut:
     Returns the normalised notation and per-class counts so the grid, the text box
     and the summary can all be redrawn from one answer.
     """
-    try:
-        if range_in.weights is not None:
-            rng = Range(range_in.weights)
-        else:
-            rng = Range.parse(range_in.notation or "")
-        dead = {parse_card(c) for c in (*range_in.hero, *range_in.board)}
-    except (RangeError, CardError) as exc:
-        return RangeOut(valid=False, error=str(exc))
-
-    grid = [
-        GridCell(
-            label=label,
-            weight=weight,
-            combos=len(CLASS_COMBOS[label]),
-            live=sum(1 for a, b in CLASS_COMBOS[label] if a not in dead and b not in dead),
-        )
-        for label, weight in rng.iter_grid()
-    ]
-    return RangeOut(
-        valid=True,
-        notation=rng.to_notation(),
-        combos=rng.combo_count(),
-        live_combos=rng.live_combo_count(dead),
-        percent=round(100 * rng.fraction(), 1),
-        grid=grid,
-    )
-
-
-def _parse(body: EquityIn) -> tuple[Spot, Range]:
-    spot = Spot(
-        tuple(parse_card(c) for c in body.hero),
-        tuple(parse_card(c) for c in body.board),
-    )
-    rng = (
-        Range(body.range_weights)
-        if body.range_weights is not None
-        else Range.parse(body.range_notation or "")
-    )
-    return spot, rng
-
-
-def _run_equity(body: EquityIn) -> EquityResult:
-    spot, rng = _parse(body)
-    return calculate_equity(spot, rng, body.method, body.samples, body.seed)
-
-
-def _equity_fields(result: EquityResult) -> dict:
-    return dict(
-        valid=True,
-        win=result.win,
-        tie=result.tie,
-        lose=result.lose,
-        equity=result.equity,
-        std_error=result.estimate.std_error,
-        ci95=result.ci95,
-        method=result.method,
-        n=result.estimate.n,
-        live_combos=result.live_combos,
-        seed=result.seed,
-        elapsed_ms=round(result.elapsed_s * 1000, 1),
-        by_class=[
-            ClassEquityOut(label=c.label, share=c.share, equity=c.equity, win=c.win, tie=c.tie)
-            for c in result.by_class.values()
-        ],
-    )
+    return RangeOut(**service.analyse_range(**range_in.model_dump()))
 
 
 @app.post("/api/equity")
 def equity(body: EquityIn) -> EquityOut:
     """Hero's win / tie / lose probabilities and equity against the opponent range."""
-    try:
-        result = _run_equity(body)
-    except (CardError, RangeError, EquityError) as exc:
-        return EquityOut(valid=False, error=str(exc))
-    return EquityOut(**_equity_fields(result))
+    return EquityOut(**service.equity(**body.model_dump()))
 
 
 @app.post("/api/analyse")
 def analyse(body: AnalyseIn) -> AnalyseOut:
     """Equity, pot odds, fold/call EV and a verdict, including turn and river betting."""
-    try:
-        situation = Situation(pot=body.pot, bet=body.bet, stack=body.stack)
-        result = _run_equity(body)
-    except (CardError, RangeError, EquityError, DecisionError) as exc:
-        return AnalyseOut(valid=False, error=str(exc))
-    d = decide(situation, result.equity, result.ci95)
-
-    profile = PROFILES[body.style]
-    strategy = profile.strategy
-    strategy_out = StrategyOut(
-        key=profile.key,
-        name=profile.name,
-        bet_fraction=strategy.bet_fraction,
-        value_share=strategy.value_share,
-        bluff_share=strategy.bluff_share,
-        bet_share=strategy.bet_share,
-    )
-    spot, rng = _parse(body)
-    try:
-        ms = analyse_call(spot, rng, situation, strategy)
-    except MultiStreetError as exc:
-        ms = None
-        multi = MultiStreetOut(available=False, note=str(exc), strategy=strategy_out)
-    else:
-        multi = MultiStreetOut(
-            available=True,
-            ev_call=ms.ev_call,
-            ev_showdown=ms.ev_showdown,
-            realized_equity=ms.realized_equity,
-            realization=ms.realization,
-            later_streets=ms.later_streets,
-            stats=ms.stats,
-            strategy=strategy_out,
-            elapsed_ms=round(ms.elapsed_s * 1000, 1),
-        )
-
-    if ms is not None:
-        call_wins = ms.ev_call > 0
-        verdict, label = ("call", "Call") if call_wins else ("fold", "Fold")
-        basis, text = "multi_street", explain_multistreet(ms, strategy, profile.name)
-    else:
-        verdict, label = d.verdict.value, d.verdict.label
-        basis, text = "showdown", explain(d)
-
-    return AnalyseOut(
-        **_equity_fields(result),
-        decision=DecisionOut(
-            call=situation.call,
-            returned=situation.returned,
-            is_all_in=situation.is_all_in,
-            final_pot=situation.final_pot,
-            break_even_equity=situation.break_even_equity,
-            pot_odds=situation.pot_odds,
-            ev_fold=d.ev_fold,
-            ev_call=d.ev_call,
-            ev_call_ci95=d.ev_call_ci95,
-            margin=d.margin,
-            verdict=verdict,
-            verdict_label=label,
-            verdict_basis=basis,
-            explanation=text,
-        ),
-        multi_street=multi,
-    )
+    return AnalyseOut(**service.analyse(**body.model_dump()))
 
 
 # Mounted last so that /api/* routes take precedence over static files.

@@ -17,9 +17,7 @@ jobs:
 
       - name: Install dependencies (exact versions from uv.lock)
         # --locked fails if uv.lock is out of date with pyproject.toml.
-        # Fallback only until the first uv.lock is committed.
-        run: |
-          if [ -f uv.lock ]; then uv sync --locked; else uv sync; fi
+        run: uv sync --locked
 
       - name: Lint
         run: uv run ruff check .
@@ -29,3 +27,18 @@ jobs:
 
       - name: Tests
         run: uv run pytest
+
+  browser-engine:
+    # The online demo runs the engine in the browser with Pyodide; check that it works there.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Build the static site
+        run: python3 scripts/build_site.py
+      - name: Run the engine in Pyodide
+        run: |
+          npm install --no-save pyodide@314.0.2
+          node scripts/pyodide_smoke.mjs

@@ -1,6 +1,6 @@
 // Entry point for the frontend. Plain ES modules, no build step (ADR 0006).
 
-import { analyseDecision, getCards, getHealth, validateSpot } from "./api.js";
+import { analyseDecision, backend, getCards, getHealth, onBackendStatus, validateSpot } from "./api.js";
 import { CardPicker } from "./cardPicker.js";
 import { RangePanel } from "./rangePanel.js";
 import { markStale, renderAnalysis, renderStatus } from "./results.js";
@@ -9,12 +9,27 @@ const $ = (id) => document.getElementById(id);
 
 async function checkApi() {
   const pill = $("api-status");
+  const { mode } = await backend();
+  if (mode === "browser") {
+    pill.textContent = "Engine: starting…";
+    onBackendStatus((text) => {
+      if (text === "ready") return;
+      pill.textContent = `Engine: ${text}`;
+      pill.title = text;
+      if (text.startsWith("Engine failed")) pill.className = "pill pill--down";
+    });
+  }
   try {
     const data = await getHealth();
-    pill.textContent = `API: ok · v${data.version}`;
+    pill.textContent =
+      mode === "browser" ? `Engine: in your browser · v${data.version}` : `API: ok · v${data.version}`;
+    pill.title =
+      mode === "browser"
+        ? "The Python engine runs inside this page (Pyodide); nothing is sent to a server."
+        : "Connected to the local FastAPI server.";
     pill.className = "pill pill--ok";
   } catch (err) {
-    pill.textContent = "API: unreachable";
+    pill.textContent = mode === "browser" ? "Engine: failed to start" : "API: unreachable";
     pill.className = "pill pill--down";
     console.error(err);
   }

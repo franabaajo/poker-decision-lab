@@ -1,5 +1,5 @@
-# Single container: FastAPI serves both the JSON API and the static frontend.
-# Hugging Face Spaces (Docker SDK) expects the app on port 7860 and runs as UID 1000.
+# Optional self-hosting: one container where FastAPI serves both the JSON API and the
+# frontend. (The public demo is the static GitHub Pages site, which needs no server.)
 FROM python:3.12-slim
 
 COPY --from=ghcr.io/astral-sh/uv:0.11.32 /uv /uvx /bin/

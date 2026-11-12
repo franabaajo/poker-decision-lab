@@ -6,7 +6,7 @@ Each Architecture Decision Record captures one project decision: the context, th
 |---|---|---|
 | [0001](0001-scope-and-purpose.md) | Educational heads-up call/fold analyser, not a gambling tool | Accepted |
 | [0002](0002-own-engine-libraries-for-plumbing.md) | Write the poker/probability engine ourselves; libraries for plumbing | Accepted |
-| [0003](0003-web-architecture.md) | FastAPI backend + custom frontend, one container on Hugging Face Spaces | Accepted |
+| [0003](0003-web-architecture.md) | FastAPI backend + custom frontend (hosting superseded by 0024) | Accepted |
 | [0004](0004-multi-street-model.md) | Model turn/river play instead of assuming showdown | Accepted |
 | [0005](0005-range-input.md) | Range input via presets, 13×13 grid and text notation, kept in sync | Accepted |
 | [0006](0006-frontend-without-build-step.md) | Plain HTML/CSS/JS frontend, no build step | Accepted |
@@ -27,3 +27,6 @@ Each Architecture Decision Record captures one project decision: the context, th
 | [0021](0021-vectorised-evaluation.md) | Speed up with NumPy vectorisation; keep reference implementations | Accepted |
 | [0022](0022-speed-targets.md) | Speed targets; exact enumeration up to 2M showdowns | Accepted |
 | [0023](0023-benchmarks.md) | Benchmarks via a script printing a Markdown table | Accepted |
+| [0024](0024-hosting-github-pages.md) | Live demo on GitHub Pages (Hugging Face Docker Spaces no longer free) | Accepted |
+| [0025](0025-shared-service-and-pyodide.md) | One service layer, run by FastAPI or in the browser via Pyodide | Accepted |
+| [0026](0026-notebook-and-docs.md) | Maths write-up and research notebook | Accepted |

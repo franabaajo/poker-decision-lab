@@ -1,6 +1,6 @@
 # 0003 — Web architecture and hosting
 
-**Status:** Accepted (2026-10-31)
+**Status:** Accepted (2026-10-31); hosting part superseded by [ADR 0024](0024-hosting-github-pages.md)
 
 ## Options
 - **Streamlit** (Community Cloud): fastest, Python-only, generic look, awkward card picker.
