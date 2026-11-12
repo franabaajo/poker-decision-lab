@@ -18,7 +18,9 @@ const check = (cond, msg) => {
 async function main() {
   const pyodide = await loadPyodide();
   await pyodide.loadPackage("numpy");
-  pyodide.unpackArchive(readFileSync("site/pokerlab.zip"), "zip", { extractDir: "/home/pyodide/lib" });
+  // Pyodide wants a plain Uint8Array (not a Node Buffer), like the ArrayBuffer the browser gets.
+  const zip = new Uint8Array(readFileSync("site/pokerlab.zip"));
+  pyodide.unpackArchive(zip, "zip", { extractDir: "/home/pyodide/lib" });
   pyodide.runPython("import sys; sys.path.insert(0, '/home/pyodide/lib')");
   const service = pyodide.pyimport("pokerlab.service");
 
