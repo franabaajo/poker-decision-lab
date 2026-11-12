@@ -36,6 +36,12 @@ worth 0. Solving from the river backwards gives the hero's best call/fold choice
 at every decision, assuming the hero knows the opponent's strategy (a best
 response; this is optimistic, and the explanation says so).
 
+**Vectorised.** Weights are NumPy arrays over the opponent's combos, and the
+river is solved for all river cards at once as a (river cards x combos) matrix,
+so the whole flop tree takes well under a second (ADR 0021). The readable
+one-combo-at-a-time version is kept in :mod:`pokerlab.reference.multistreet`
+and the tests require both to agree.
+
 The EV of calling the current bet is ``-call + V(after the call)``. When the
 opponent never bets again this reduces exactly to M5's ``equity * pot - call``;
 a test checks that.
@@ -47,9 +53,11 @@ import time
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 
+import numpy as np
+
 from pokerlab.cards import remaining_deck
 from pokerlab.decision import Situation
-from pokerlab.evaluator import evaluate
+from pokerlab.evaluator_fast import evaluate_batch
 from pokerlab.profiles import Strategy
 from pokerlab.ranges import Range
 from pokerlab.spot import Spot, Street
@@ -92,94 +100,194 @@ def bet_probabilities(
     threshold gets a fractional probability. This keeps the betting share of the
     range exactly equal to ``strategy.bet_share``.
     """
-    order = sorted(range(len(strengths)), key=lambda i: -strengths[i])
-    return _bet_probs_sorted(order, strengths, weights, strategy)
+    groups = _Groups(np.asarray(strengths))
+    return groups.bet_probabilities(np.asarray(weights, dtype=float), strategy).tolist()
 
 
-def _bet_probs_sorted(
-    order: Sequence[int],
-    strengths: Sequence[int],
-    weights: Sequence[float],
-    strategy: Strategy,
-) -> list[float]:
-    probs = [0.0] * len(strengths)
-    total = sum(weights)
-    if total <= 0:
+class _Groups:
+    """Combos sorted strongest first and grouped by equal strength (for one board)."""
+
+    def __init__(self, scores: np.ndarray):
+        self.order = np.argsort(-scores, kind="stable")
+        sorted_scores = scores[self.order]
+        self.starts = np.flatnonzero(np.r_[True, sorted_scores[1:] != sorted_scores[:-1]])
+        self.group_of_sorted = np.repeat(
+            np.arange(len(self.starts)), np.diff(np.r_[self.starts, len(scores)])
+        )
+
+    def bet_probabilities(self, weights: np.ndarray, strategy: Strategy) -> np.ndarray:
+        total = weights.sum()
+        probs = np.zeros(len(weights))
+        if total <= 0:
+            return probs
+        mass = np.add.reduceat(weights[self.order], self.starts)
+        hi = np.cumsum(mass)
+        lo = hi - mass
+        value_end = strategy.value_share * total
+        bluff_start = total - strategy.bluff_share * (1.0 - strategy.value_share) * total
+        overlap = np.clip(np.minimum(hi, value_end) - lo, 0, None) + np.clip(
+            hi - np.maximum(lo, bluff_start), 0, None
+        )
+        p_group = np.divide(overlap, mass, out=np.zeros_like(mass), where=mass > 0)
+        probs[self.order] = np.minimum(1.0, p_group)[self.group_of_sorted]
         return probs
-    value_end = strategy.value_share * total
-    bluff_start = total - strategy.bluff_share * (1.0 - strategy.value_share) * total
-
-    cum = 0.0
-    i = 0
-    n = len(order)
-    while i < n:
-        # Collect one group of equal strength.
-        j = i
-        group_mass = 0.0
-        s = strengths[order[i]]
-        while j < n and strengths[order[j]] == s:
-            group_mass += weights[order[j]]
-            j += 1
-        if group_mass > 0:
-            lo, hi = cum, cum + group_mass
-            overlap = max(0.0, min(hi, value_end) - lo) + max(0.0, hi - max(lo, bluff_start))
-            p = min(1.0, overlap / group_mass)
-            for k in range(i, j):
-                probs[order[k]] = p
-        cum += group_mass
-        i = j
-    return probs
 
 
 class _Tree:
-    """Holds the fixed inputs and score caches while the game tree is solved."""
+    """Holds the fixed inputs and score caches while the game tree is solved.
+
+    Weights are NumPy arrays over the opponent's live combos, so every step
+    (betting probabilities, Bayesian update, showdown share) is a vector operation.
+    """
 
     def __init__(self, spot: Spot, combos, strategy: Strategy):
-        self.hero = list(spot.hero)
-        self.board = list(spot.board)
-        self.combos = [c for c, _ in combos]
-        self.base_weights = [w for _, w in combos]
+        self.hero = np.array(spot.hero, dtype=np.int64)
+        self.board = np.array(spot.board, dtype=np.int64)
+        self.combos = np.array([c for c, _ in combos], dtype=np.int64)
+        self.base_weights = np.array([w for _, w in combos], dtype=float)
         self.strategy = strategy
         self.deck = remaining_deck(spot.dead_cards)
-        self._opp_scores: dict[tuple[int, ...], tuple[list[int], list[int]]] = {}
-        self._hero_scores: dict[tuple[int, ...], int] = {}
+        # blocks[card]: boolean mask of the combos that contain that card.
+        self.blocks = {c: (self.combos == c).any(axis=1) for c in self.deck}
+        self._cache: dict[tuple[int, ...], tuple[np.ndarray, int, _Groups]] = {}
+        self._river_cache: dict[tuple[int, ...], dict[str, np.ndarray]] = {}
 
-    # --- cached evaluation ---
-
-    def scores(self, extra: tuple[int, ...]) -> tuple[list[int], list[int]]:
-        """Opponent scores on board + extra (blocked combos get -1) and their strength order."""
+    def board_info(self, extra: tuple[int, ...]) -> tuple[np.ndarray, int, _Groups]:
+        """Opponent scores on board + extra (blocked combos get -1), hero score, groups."""
         key = tuple(sorted(extra))
-        cached = self._opp_scores.get(key)
+        cached = self._cache.get(key)
         if cached is None:
-            board = [*self.board, *key]
-            scores = [
-                -1 if (a in key or b in key) else evaluate([a, b, *board]) for a, b in self.combos
-            ]
-            order = sorted(range(len(scores)), key=lambda i: -scores[i])
-            cached = (scores, order)
-            self._opp_scores[key] = cached
+            cards = np.array(key, dtype=np.int64)
+            n = len(self.combos)
+            hands = np.hstack(
+                [
+                    self.combos,
+                    np.broadcast_to(self.board, (n, len(self.board))),
+                    np.broadcast_to(cards, (n, len(cards))),
+                ]
+            )
+            scores = evaluate_batch(hands)
+            for c in key:
+                scores[self.blocks[c]] = -1
+            hero = int(evaluate_batch(np.concatenate([self.hero, self.board, cards])[None, :])[0])
+            cached = (scores, hero, _Groups(scores))
+            self._cache[key] = cached
         return cached
 
-    def hero_score(self, extra: tuple[int, ...]) -> int:
+    def river_data(self, extra: tuple[int, ...]) -> dict[str, np.ndarray]:
+        """All possible river cards after board + extra, as (rivers, combos) arrays."""
         key = tuple(sorted(extra))
-        if key not in self._hero_scores:
-            self._hero_scores[key] = evaluate([*self.hero, *self.board, *key])
-        return self._hero_scores[key]
+        data = self._river_cache.get(key)
+        if data is None:
+            rivers = np.array([c for c in self.deck if c not in key], dtype=np.int64)
+            m, n = len(rivers), len(self.combos)
+            known = np.concatenate([self.board, np.array(key, dtype=np.int64)])
+            hands = np.concatenate(
+                [
+                    np.broadcast_to(self.combos[None, :, :], (m, n, 2)),
+                    np.broadcast_to(known, (m, n, len(known))),
+                    np.broadcast_to(rivers[:, None, None], (m, n, 1)),
+                ],
+                axis=2,
+            ).reshape(m * n, -1)
+            blocked = (self.combos[None, :, :] == rivers[:, None, None]).any(axis=2)
+            for c in key:
+                blocked |= self.blocks[c][None, :]
+            scores = evaluate_batch(hands).reshape(m, n)
+            scores[blocked] = -1
+            hero = evaluate_batch(
+                np.hstack(
+                    [
+                        np.broadcast_to(np.concatenate([self.hero, known]), (m, 2 + len(known))),
+                        rivers[:, None],
+                    ]
+                )
+            )
+            # Strength order and equal-strength groups for every river card at once.
+            order = np.argsort(-scores, axis=1, kind="stable")
+            ss = np.take_along_axis(scores, order, axis=1)
+            new_group = np.ones_like(ss, dtype=bool)
+            new_group[:, 1:] = ss[:, 1:] != ss[:, :-1]
+            pos = np.broadcast_to(np.arange(n), (m, n))
+            start = np.maximum.accumulate(np.where(new_group, pos, 0), axis=1)
+            end_marker = np.ones_like(ss, dtype=bool)
+            end_marker[:, :-1] = new_group[:, 1:]
+            end = np.minimum.accumulate(np.where(end_marker, pos, n - 1)[:, ::-1], axis=1)[:, ::-1]
+            data = {
+                "blocked": blocked,
+                "share": (hero[:, None] > scores) + 0.5 * (hero[:, None] == scores),
+                "order": order,
+                "start": start,
+                "end": end,
+            }
+            self._river_cache[key] = data
+        return data
 
-    # --- the game ---
+    def river_stage(self, extra, weights, pot, stack, betting=True):
+        """Deal the river and play it out, for all river cards at once. Returns (value, stats).
+
+        Equivalent to ``deal(..., cards_left=1)`` but vectorised over river cards.
+        """
+        d = self.river_data(extra)
+        w = np.where(d["blocked"], 0.0, weights[None, :])  # (rivers, combos)
+        mass = w.sum(axis=1)
+        size = min(self.strategy.bet_fraction * pot, stack) if betting else 0.0
+        if size > 0:
+            s = self.strategy
+            cum = np.zeros((w.shape[0], w.shape[1] + 1))
+            np.cumsum(np.take_along_axis(w, d["order"], axis=1), axis=1, out=cum[:, 1:])
+            lo = np.take_along_axis(cum, d["start"], axis=1)
+            hi = np.take_along_axis(cum, d["end"] + 1, axis=1)
+            group_mass = hi - lo
+            total = mass[:, None]
+            value_end = s.value_share * total
+            bluff_start = total - s.bluff_share * (1.0 - s.value_share) * total
+            overlap = np.clip(np.minimum(hi, value_end) - lo, 0, None) + np.clip(
+                hi - np.maximum(lo, bluff_start), 0, None
+            )
+            p_sorted = np.minimum(
+                1.0,
+                np.divide(overlap, group_mass, out=np.zeros_like(overlap), where=group_mass > 0),
+            )
+            probs = np.empty_like(p_sorted)
+            np.put_along_axis(probs, d["order"], p_sorted, axis=1)
+        else:
+            probs = np.zeros_like(w)
+
+        w_bet = w * probs
+        w_chk = w - w_bet
+        m_bet, m_chk = w_bet.sum(axis=1), w_chk.sum(axis=1)
+        share_bet = np.divide(
+            (w_bet * d["share"]).sum(axis=1), m_bet, out=np.zeros_like(m_bet), where=m_bet > 0
+        )
+        share_chk = np.divide(
+            (w_chk * d["share"]).sum(axis=1), m_chk, out=np.zeros_like(m_chk), where=m_chk > 0
+        )
+        v_call = (pot + 2 * size) * share_bet - size
+        calls = (v_call > 0) & (m_bet > 0)
+        values = m_chk * pot * share_chk + np.where(calls, m_bet * v_call, 0.0)
+
+        total = mass.sum()
+        if total <= 0:
+            return 0.0, {}
+        stats = {
+            "bet_river": float(m_bet.sum() / total),
+            "fold_river": float(np.where(calls, 0.0, m_bet).sum() / total),
+            "showdown": float((m_chk + np.where(calls, m_bet, 0.0)).sum() / total),
+        }
+        return float(values.sum() / total), stats
 
     def deal(self, extra, weights, pot, stack, cards_left, betting=True):
         """Average over the next card. Returns (value, stats)."""
-        total = 0.0
-        value = 0.0
+        if cards_left == 1:
+            return self.river_stage(extra, weights, pot, stack, betting)
+        total = value = 0.0
         stats: dict[str, float] = {}
         for card in self.deck:
             if card in extra:
                 continue
-            w = [
-                0.0 if card in combo else wt for combo, wt in zip(self.combos, weights, strict=True)
-            ]
-            mass = sum(w)
+            w = np.where(self.blocks[card], 0.0, weights)
+            mass = w.sum()
             if mass <= 0:
                 continue
             v, st = self.act((*extra, card), w, pot, stack, cards_left - 1, betting)
@@ -193,32 +301,26 @@ class _Tree:
 
     def showdown_share(self, extra, weights) -> float:
         """Hero's expected share of the pot at showdown against the weighted range."""
-        scores, _ = self.scores(extra)
-        hero = self.hero_score(extra)
-        total = share = 0.0
-        for score, w in zip(scores, weights, strict=True):
-            if w <= 0:
-                continue
-            total += w
-            if hero > score:
-                share += w
-            elif hero == score:
-                share += 0.5 * w
-        return share / total if total > 0 else 0.0
+        scores, hero, _ = self.board_info(extra)
+        total = weights.sum()
+        if total <= 0:
+            return 0.0
+        share = (weights * ((hero > scores) + 0.5 * (hero == scores))).sum()
+        return float(share / total)
 
     def act(self, extra, weights, pot, stack, cards_left, betting=True):
         """Opponent acts on board + extra; hero responds. Returns (value, stats)."""
         street = "turn" if len(self.board) + len(extra) == 4 else "river"
         size = min(self.strategy.bet_fraction * pot, stack) if betting else 0.0
-        scores, order = self.scores(extra)
         if size > 0:
-            probs = _bet_probs_sorted(order, scores, weights, self.strategy)
+            _, _, groups = self.board_info(extra)
+            probs = groups.bet_probabilities(weights, self.strategy)
         else:
-            probs = [0.0] * len(weights)
+            probs = np.zeros(len(weights))
 
-        w_bet = [w * p for w, p in zip(weights, probs, strict=True)]
-        w_chk = [w - b for w, b in zip(weights, w_bet, strict=True)]
-        m_bet, m_chk = sum(w_bet), sum(w_chk)
+        w_bet = weights * probs
+        w_chk = weights - w_bet
+        m_bet, m_chk = float(w_bet.sum()), float(w_chk.sum())
         m_total = m_bet + m_chk
 
         def continuation(w, pot_, stack_):

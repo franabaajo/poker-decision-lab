@@ -129,9 +129,10 @@ def test_auto_uses_exact_when_cheap():
     assert calculate_equity(s, rng).method == "exact"
 
 
-def test_auto_uses_monte_carlo_when_exact_is_too_expensive():
+def test_auto_uses_monte_carlo_when_exact_is_too_expensive(monkeypatch):
     s, rng = spot("AsQs", "Js8d4s"), Range.full()
-    assert exact_work(s, rng) > EXACT_WORK_LIMIT
+    assert exact_work(s, rng) <= EXACT_WORK_LIMIT  # since M7 even the full range is exact
+    monkeypatch.setattr("pokerlab.equity.EXACT_WORK_LIMIT", 100_000)
     assert calculate_equity(s, rng, samples=500).method == "monte_carlo"
 
 

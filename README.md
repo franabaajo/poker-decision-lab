@@ -8,7 +8,7 @@ You enter your hole cards, the board, the pot, the bet, effective stacks and an 
 
 > **Not a gambling tool.** It does not know anyone's cards, does not connect to live games and guarantees nothing. Every result is conditional on the assumed opponent range and strategy.
 
-**Status:** milestone M6 (turn and river betting). See the [roadmap](#roadmap).
+**Status:** milestone M7 (performance). See the [roadmap](#roadmap).
 
 ## Quick start
 
@@ -28,6 +28,7 @@ uv run pytest                 # all tests (includes a ~25 s exhaustive check)
 uv run pytest -m "not slow"   # quick run
 uv run ruff check .           # lint
 uv run ruff format .          # format
+uv run python benchmarks/run.py   # speed: reference vs vectorised
 ```
 
 Docker (same image as the deployment):
@@ -48,6 +49,22 @@ docs/decisions/ Architecture Decision Records
 
 The engine never imports the web layer, which keeps it testable, benchmarkable and usable from notebooks. Design decisions are recorded in [`docs/decisions/`](docs/decisions/README.md).
 
+## Performance
+
+The engine was first written as readable pure Python, one hand at a time, and verified.
+M7 then vectorised it with NumPy: thousands of hands are scored per call using array
+operations and small lookup tables. The original code is kept in `pokerlab.reference`
+and the tests require both versions to give identical results.
+
+| Task | Reference (pure Python) | Vectorised (NumPy) | Speed-up |
+|---|---:|---:|---:|
+| Evaluate 200,000 seven-card hands | 1.25 s | 0.112 s | 11x |
+| Exact equity, flop, Balanced range | 1.30 s | 0.139 s | 9x |
+| Monte Carlo equity, preflop, 50,000 deals | 0.84 s | 0.093 s | 9x |
+| Turn + river model, flop, Aggressive | 3.26 s | 0.577 s | 6x |
+
+Measured with `benchmarks/run.py` on a 2-vCPU cloud machine; times vary by machine.
+
 ## Roadmap
 
 - [x] **M0** Scaffold: uv project, CI, FastAPI + frontend skeleton, Docker, deployment
@@ -57,7 +74,7 @@ The engine never imports the web layer, which keeps it testable, benchmarkable a
 - [x] **M4** Equity engine: exact enumeration + Monte Carlo with confidence intervals
 - [x] **M5** Pot odds, break-even equity and single-decision EV; results page
 - [x] **M6** Multi-street model: opponent profiles, hero best response, realised EV
-- [ ] **M7** Performance benchmarks and optimisation
+- [x] **M7** Performance benchmarks and optimisation
 - [ ] **M8** Mathematical write-up, research notebook, polished docs
 
 ### Planned extensions (after the MVP)

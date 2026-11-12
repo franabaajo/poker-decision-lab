@@ -24,3 +24,6 @@ Each Architecture Decision Record captures one project decision: the context, th
 | [0018](0018-opponent-betting-rule.md) | Opponent bets by a value/bluff rule; hero best-responds | Accepted |
 | [0019](0019-style-parameters.md) | Tight / Balanced / Aggressive betting parameters | Accepted |
 | [0020](0020-hand-strength-for-betting.md) | Opponent ranks hands by current made-hand strength | Accepted |
+| [0021](0021-vectorised-evaluation.md) | Speed up with NumPy vectorisation; keep reference implementations | Accepted |
+| [0022](0022-speed-targets.md) | Speed targets; exact enumeration up to 2M showdowns | Accepted |
+| [0023](0023-benchmarks.md) | Benchmarks via a script printing a Markdown table | Accepted |

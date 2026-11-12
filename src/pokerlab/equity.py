@@ -19,23 +19,27 @@ Monte Carlo
     practical option.
 
 Sampling order matters for correctness: we draw the opponent's hand from combos
-that do not clash with the visible cards, *then* the runout from what is left.
-Drawing a runout that clashes with the chosen combo is rejected and redrawn, which
-is equivalent to drawing uniformly from the valid runouts.
+that do not clash with the visible cards, *then* a uniformly random runout from the
+cards still in the deck (every remaining card gets a random key; the opponent's own
+cards are pushed to the end; the k smallest keys form the runout).
+
+Both methods are vectorised with NumPy (ADR 0021): all (combo, runout) showdowns
+are scored in one call to :func:`pokerlab.evaluator_fast.evaluate_batch`.
 """
 
 from __future__ import annotations
 
 import itertools
-import random
 import time
 from collections import defaultdict
 from dataclasses import dataclass, field
 from math import comb
 from typing import Literal
 
+import numpy as np
+
 from pokerlab.cards import remaining_deck
-from pokerlab.evaluator import evaluate
+from pokerlab.evaluator_fast import evaluate_batch
 from pokerlab.ranges import Range, class_of_combo
 from pokerlab.spot import Spot, Street
 from pokerlab.stats import Estimate, estimate_from_counts
@@ -43,8 +47,8 @@ from pokerlab.stats import Estimate, estimate_from_counts
 Method = Literal["auto", "exact", "monte_carlo"]
 
 #: "auto" uses exact enumeration when (live combos x runouts) is at most this many
-#: showdowns (a few seconds in pure Python; M7 makes this faster), else Monte Carlo.
-EXACT_WORK_LIMIT = 300_000
+#: showdowns (about a second with the vectorised evaluator, ADR 0022), else Monte Carlo.
+EXACT_WORK_LIMIT = 2_000_000
 DEFAULT_SAMPLES = 50_000
 
 
@@ -109,56 +113,82 @@ def exact_work(spot: Spot, rng: Range) -> int:
 # --- Exact enumeration --------------------------------------------------------------------
 
 
+def _combo_arrays(combos) -> tuple[np.ndarray, np.ndarray]:
+    cards = np.array([c for c, _ in combos], dtype=np.int64)
+    weights = np.array([w for _, w in combos], dtype=float)
+    return cards, weights
+
+
+def _class_results_from_combos(combos, p_win: np.ndarray, p_tie: np.ndarray, share_w: np.ndarray):
+    """Aggregate per-combo results into per-class results. ``share_w`` are the combo weights."""
+    acc: dict[str, list[float]] = defaultdict(lambda: [0.0, 0.0, 0.0])
+    for ((a, b), _), w, pw, pt in zip(combos, share_w, p_win, p_tie, strict=True):
+        cell = acc[class_of_combo(a, b)]
+        cell[0] += w
+        cell[1] += w * pw
+        cell[2] += w * pt
+    total = float(share_w.sum())
+    return {
+        label: ClassResult(label, share=w / total, win=win / w, tie=tie / w)
+        for label, (w, win, tie) in sorted(acc.items())
+        if w > 0
+    }
+
+
 def exact_equity(spot: Spot, rng: Range) -> EquityResult:
     if spot.street is Street.PREFLOP:
         raise EquityError("Exact enumeration preflop is too slow; use Monte Carlo.")
     start = time.perf_counter()
     combos = _live_combos(spot, rng)
-    board = list(spot.board)
-    live = remaining_deck(spot.dead_cards)
+    villain, weights = _combo_arrays(combos)
+    board = np.array(spot.board, dtype=np.int64)
+    live = np.array(remaining_deck(spot.dead_cards), dtype=np.int64)
+    k = spot.cards_to_come
 
-    # The hero's score depends only on the runout, so compute it once per runout.
-    runouts = list(itertools.combinations(live, spot.cards_to_come))
-    hero_scores = [evaluate([*spot.hero, *board, *r]) for r in runouts]
+    # Every possible runout, and the hero's score on each (computed once).
+    if k:
+        runouts = np.array(list(itertools.combinations(live, k)), dtype=np.int64)
+    else:  # river: a single, empty runout
+        runouts = np.empty((1, 0), dtype=np.int64)
+    n_c, n_r = len(villain), len(runouts)
+    fixed = np.concatenate([np.array(spot.hero, dtype=np.int64), board])
+    hero = evaluate_batch(np.hstack([np.broadcast_to(fixed, (n_r, len(fixed))), runouts]))
 
-    class_acc: dict[str, list[float]] = defaultdict(lambda: [0.0, 0.0, 0.0])  # weight, win, tie
-    total_w = win_acc = tie_acc = 0.0
-    showdowns = 0
-    for (a, b), w in combos:
-        wins = ties = n = 0
-        for runout, hero_score in zip(runouts, hero_scores, strict=True):
-            if a in runout or b in runout:
-                continue
-            villain_score = evaluate([a, b, *board, *runout])
-            n += 1
-            if hero_score > villain_score:
-                wins += 1
-            elif hero_score == villain_score:
-                ties += 1
-        showdowns += n
-        p_win, p_tie = wins / n, ties / n
-        total_w += w
-        win_acc += w * p_win
-        tie_acc += w * p_tie
-        acc = class_acc[class_of_combo(a, b)]
-        acc[0] += w
-        acc[1] += w * p_win
-        acc[2] += w * p_tie
+    # valid[i, j]: runout j does not use one of combo i's cards.
+    valid = ~(runouts[None, :, :, None] == villain[:, None, None, :]).any(axis=(2, 3))
 
-    win, tie = win_acc / total_w, tie_acc / total_w
+    # Villain scores for every (combo, runout) pair in one batch.
+    cards = np.concatenate(
+        [
+            np.broadcast_to(villain[:, None, :], (n_c, n_r, 2)),
+            np.broadcast_to(board, (n_c, n_r, len(board))),
+            np.broadcast_to(runouts[None, :, :], (n_c, n_r, k)),
+        ],
+        axis=2,
+    ).reshape(-1, 2 + len(board) + k)
+    scores = evaluate_batch(cards).reshape(n_c, n_r)
+
+    n = valid.sum(axis=1)  # the same for every combo
+    p_win = ((hero[None, :] > scores) & valid).sum(axis=1) / n
+    p_tie = ((hero[None, :] == scores) & valid).sum(axis=1) / n
+    total_w = weights.sum()
+    win = float((weights * p_win).sum() / total_w)
+    tie = float((weights * p_tie).sum() / total_w)
     return EquityResult(
         win=win,
         tie=tie,
         lose=1.0 - win - tie,
         method="exact",
-        estimate=Estimate(win + 0.5 * tie, 0.0, showdowns),
-        live_combos=total_w,
-        by_class=_class_results(class_acc, total_w),
+        estimate=Estimate(win + 0.5 * tie, 0.0, int(n.sum())),
+        live_combos=float(total_w),
+        by_class=_class_results_from_combos(combos, p_win, p_tie, weights),
         elapsed_s=time.perf_counter() - start,
     )
 
 
 # --- Monte Carlo ------------------------------------------------------------------------
+
+_MC_CHUNK = 50_000
 
 
 def monte_carlo_equity(
@@ -168,51 +198,50 @@ def monte_carlo_equity(
         raise EquityError("Monte Carlo needs at least 1 sample.")
     start = time.perf_counter()
     if seed is None:
-        seed = random.SystemRandom().randrange(2**32)
-    gen = random.Random(seed)
+        seed = int(np.random.SeedSequence().entropy % 2**32)
+    gen = np.random.default_rng(seed)
 
     combos = _live_combos(spot, rng)
-    board = list(spot.board)
-    live = remaining_deck(spot.dead_cards)
+    villain, weights = _combo_arrays(combos)
+    board = np.array(spot.board, dtype=np.int64)
+    live = np.array(remaining_deck(spot.dead_cards), dtype=np.int64)
     k = spot.cards_to_come
-    hero = list(spot.hero)
+    hero_cards = np.array(spot.hero, dtype=np.int64)
 
-    # Draw all opponent hands up front, proportional to weight.
-    picks = gen.choices(range(len(combos)), weights=[w for _, w in combos], k=samples)
+    # Opponent hands for all samples, proportional to weight.
+    picks = gen.choice(len(villain), size=samples, p=weights / weights.sum())
+    # in_combo[i, j]: live card j belongs to combo i (those cards cannot be dealt).
+    in_combo = (live[None, :, None] == villain[:, None, :]).any(axis=2)
 
-    wins = ties = losses = 0
-    class_counts: dict[str, list[int]] = defaultdict(lambda: [0, 0, 0])  # n, win, tie
-    for i in picks:
-        a, b = combos[i][0]
-        while True:  # rejection: redraw runouts that use the opponent's cards
-            runout = gen.sample(live, k)
-            if a not in runout and b not in runout:
-                break
-        hero_score = evaluate([*hero, *board, *runout])
-        villain_score = evaluate([a, b, *board, *runout])
-        counts = class_counts[class_of_combo(a, b)]
-        counts[0] += 1
-        if hero_score > villain_score:
-            wins += 1
-            counts[1] += 1
-        elif hero_score == villain_score:
-            ties += 1
-            counts[2] += 1
-        else:
-            losses += 1
+    wins = np.zeros(len(villain))
+    ties = np.zeros(len(villain))
+    for lo in range(0, samples, _MC_CHUNK):
+        chunk = picks[lo : lo + _MC_CHUNK]
+        m = len(chunk)
+        # A uniform random k-subset of the remaining cards per sample: give every card a
+        # random key, push the opponent's own cards to the end, keep the k smallest keys.
+        keys = gen.random((m, len(live)))
+        keys[in_combo[chunk]] = 2.0
+        runouts = live[np.argpartition(keys, k - 1, axis=1)[:, :k]] if k else np.empty((m, 0), int)
+        common = np.hstack([np.broadcast_to(board, (m, len(board))), runouts])
+        hero = evaluate_batch(np.hstack([np.broadcast_to(hero_cards, (m, 2)), common]))
+        vill = evaluate_batch(np.hstack([villain[chunk], common]))
+        wins += np.bincount(chunk, weights=hero > vill, minlength=len(villain))
+        ties += np.bincount(chunk, weights=hero == vill, minlength=len(villain))
 
-    by_class = {
-        label: ClassResult(label, share=n / samples, win=w / n, tie=t / n)
-        for label, (n, w, t) in sorted(class_counts.items())
-    }
+    counts = np.bincount(picks, minlength=len(villain)).astype(float)
+    n_win, n_tie = int(wins.sum()), int(ties.sum())
+    seen = counts > 0
+    p_win = np.divide(wins, counts, out=np.zeros_like(wins), where=seen)
+    p_tie = np.divide(ties, counts, out=np.zeros_like(ties), where=seen)
     return EquityResult(
-        win=wins / samples,
-        tie=ties / samples,
-        lose=losses / samples,
+        win=n_win / samples,
+        tie=n_tie / samples,
+        lose=(samples - n_win - n_tie) / samples,
         method="monte_carlo",
-        estimate=estimate_from_counts(wins, ties, losses),
-        live_combos=sum(w for _, w in combos),
-        by_class=by_class,
+        estimate=estimate_from_counts(n_win, n_tie, samples - n_win - n_tie),
+        live_combos=float(weights.sum()),
+        by_class=_class_results_from_combos(combos, p_win, p_tie, counts),
         seed=seed,
         elapsed_s=time.perf_counter() - start,
     )
@@ -237,10 +266,3 @@ def calculate_equity(
     if method == "monte_carlo":
         return monte_carlo_equity(spot, rng, samples=samples, seed=seed)
     raise EquityError(f"Unknown method {method!r}.")
-
-
-def _class_results(acc: dict[str, list[float]], total_w: float) -> dict[str, ClassResult]:
-    return {
-        label: ClassResult(label, share=w / total_w, win=win / w, tie=tie / w)
-        for label, (w, win, tie) in sorted(acc.items())
-    }
