@@ -262,3 +262,45 @@ button.chip:hover { color: var(--text); }
   background: var(--surface-2); border-radius: 6px; }
 .after-call__list b { font-variant-numeric: tabular-nums; }
 .ev-chart .dot--real { fill: var(--bg); stroke: var(--text); stroke-width: 2.5; }
+
+/* --- Phones ---------------------------------------------------------------------------
+   Everything below only applies to narrow screens; the laptop layout is unchanged. */
+
+@media (max-width: 600px) {
+  .topbar { padding: .75rem 1rem; gap: .75rem; }
+  .topbar h1 { font-size: 1rem; }
+  .pill { font-size: .7rem; padding: .15rem .55rem; text-align: right; }
+
+  .layout { padding: .75rem; gap: .75rem; }
+  .panel { padding: 1rem .8rem; }
+  .footer { padding: 0 1rem 1.5rem; }
+
+  /* Hero and board cards on one line each, a little smaller. */
+  .table-row { gap: 1rem; }
+  .slot { width: 46px; height: 64px; }
+
+  /* Taller cards in the picker: easier to tap with a thumb. */
+  .card-grid { gap: 3px; }
+  .card-grid .pcard { aspect-ratio: 3 / 5; border-radius: 5px; }
+  .pcard__rank { font-size: .8rem; }
+  .pcard__suit { font-size: .75rem; }
+
+  /* Chip amounts: one per row instead of three squeezed side by side. */
+  .field-row { grid-template-columns: 1fr; gap: .25rem; }
+  .field-row--2 { grid-template-columns: 1fr 1fr; }
+  .field input { font-size: 16px; } /* 16px stops iOS from zooming in on focus */
+
+  /* Range grid: square-ish cells instead of wide, short ones. */
+  .range-grid { gap: 1.5px; }
+  .rcell { aspect-ratio: 0.9; border-radius: 3px; }
+  .rcell__label { font-size: .5rem; }
+  .range-tools { flex-wrap: wrap; gap: .5rem; }
+
+  .heatmap .hcell { aspect-ratio: 0.9; font-size: .45rem; }
+  .stat__value { font-size: 1.3rem; }
+}
+
+/* Touch screens have no hover: don't leave cards "lifted" after a tap. */
+@media (hover: none) {
+  .card-grid .pcard:not(:disabled):hover { transform: none; }
+}
